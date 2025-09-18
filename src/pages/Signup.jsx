@@ -1,16 +1,39 @@
-// src/pages/Signup.jsx
-import React, { useState } from 'react'
-import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Check, Shield, Sparkles } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import {
+  Eye,
+  EyeOff,
+  Mail,
+  Lock,
+  User,
+  ArrowRight,
+  Check,
+  Shield,
+  Sparkles
+} from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import { useDispatch, useSelector } from 'react-redux'
+import { adminSignup } from '../redux/authSlice' // update with actual path
 
 export default function Signup() {
-  const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '' })
+  const [form, setForm] = useState({
+    firstName: '',
+    lastName: '',
+    phoneNumber: '',
+    email: '',
+    password: '',
+    confirm: ''
+  })
   const [showPwd, setShowPwd] = useState(false)
-  const [loading, setLoading] = useState(false)
+
+  const dispatch = useDispatch()
   const navigate = useNavigate()
 
-  const handleChange = e => setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
+  // Get loading, success, error from Redux auth slice
+  const { loading, error, success } = useSelector((state) => state.auth)
+
+  const handleChange = (e) =>
+    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
 
   const getPasswordStrength = (password) => {
     let score = 0
@@ -23,11 +46,31 @@ export default function Signup() {
   }
 
   const passwordStrength = getPasswordStrength(form.password)
-  const strengthColors = ['bg-red-500', 'bg-red-500', 'bg-yellow-500', 'bg-blue-500', 'bg-green-500']
+  const strengthColors = [
+    'bg-red-500',
+    'bg-red-500',
+    'bg-yellow-500',
+    'bg-blue-500',
+    'bg-green-500'
+  ]
   const strengthLabels = ['Very Weak', 'Weak', 'Fair', 'Good', 'Strong']
 
-  const handleSubmit = e => {
+  useEffect(() => {
+    if (error) {
+      toast.error(error.message || 'Signup failed')
+    }
+  }, [error])
+
+  useEffect(() => {
+    if (success) {
+      toast.success('Account created successfully! Welcome aboard!')
+      navigate('/dashboard')
+    }
+  }, [success, navigate])
+
+  const handleSubmit = (e) => {
     e.preventDefault()
+
     if (form.password !== form.confirm) {
       toast.error('Passwords do not match')
       return
@@ -36,14 +79,17 @@ export default function Signup() {
       toast.error('Please use a stronger password')
       return
     }
-    
-    setLoading(true)
-    
-    setTimeout(() => {
-      localStorage.setItem('isAuthenticated', 'true')
-      toast.success('Account created successfully! Welcome aboard!')
-      navigate('/dashboard')
-    }, 1500)
+
+    // Prepare payload for signup
+    const signupData = {
+      firstName: form.firstName,
+      lastName: form.lastName,
+      phoneNumber: form.phoneNumber,
+      email: form.email,
+      password: form.password
+    }
+
+    dispatch(adminSignup(signupData))
   }
 
   return (
@@ -75,21 +121,72 @@ export default function Signup() {
         {/* Signup Form */}
         <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl shadow-black/10 border border-white/20 p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Full Name Field */}
+            {/* First Name Field */}
             <div className="space-y-2">
               <label className="block text-sm font-semibold text-gray-700">
-                Full Name
+                First Name
               </label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <User size={20} className="text-gray-400 group-focus-within:text-emerald-500 transition-colors duration-200" />
+                  <User
+                    size={20}
+                    className="text-gray-400 group-focus-within:text-emerald-500 transition-colors duration-200"
+                  />
                 </div>
                 <input
                   type="text"
-                  name="name"
-                  value={form.name}
+                  name="firstName"
+                  value={form.firstName}
                   onChange={handleChange}
-                  placeholder="Enter your full name"
+                  placeholder="Enter your first name"
+                  className="w-full pl-12 pr-4 py-4 bg-gray-50/50 border border-gray-200/50 rounded-2xl focus:bg-white focus:border-emerald-300 focus:ring-4 focus:ring-emerald-500/10 transition-all duration-200 text-gray-900 placeholder-gray-500"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Last Name Field */}
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">
+                Last Name
+              </label>
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <User
+                    size={20}
+                    className="text-gray-400 group-focus-within:text-emerald-500 transition-colors duration-200"
+                  />
+                </div>
+                <input
+                  type="text"
+                  name="lastName"
+                  value={form.lastName}
+                  onChange={handleChange}
+                  placeholder="Enter your last name"
+                  className="w-full pl-12 pr-4 py-4 bg-gray-50/50 border border-gray-200/50 rounded-2xl focus:bg-white focus:border-emerald-300 focus:ring-4 focus:ring-emerald-500/10 transition-all duration-200 text-gray-900 placeholder-gray-500"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Phone Number Field */}
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">
+                Phone Number
+              </label>
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <User
+                    size={20}
+                    className="text-gray-400 group-focus-within:text-emerald-500 transition-colors duration-200"
+                  />
+                </div>
+                <input
+                  type="tel"
+                  name="phoneNumber"
+                  value={form.phoneNumber}
+                  onChange={handleChange}
+                  placeholder="Enter your phone number"
                   className="w-full pl-12 pr-4 py-4 bg-gray-50/50 border border-gray-200/50 rounded-2xl focus:bg-white focus:border-emerald-300 focus:ring-4 focus:ring-emerald-500/10 transition-all duration-200 text-gray-900 placeholder-gray-500"
                   required
                 />
@@ -103,7 +200,10 @@ export default function Signup() {
               </label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Mail size={20} className="text-gray-400 group-focus-within:text-emerald-500 transition-colors duration-200" />
+                  <Mail
+                    size={20}
+                    className="text-gray-400 group-focus-within:text-emerald-500 transition-colors duration-200"
+                  />
                 </div>
                 <input
                   type="email"
@@ -124,7 +224,10 @@ export default function Signup() {
               </label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Lock size={20} className="text-gray-400 group-focus-within:text-emerald-500 transition-colors duration-200" />
+                  <Lock
+                    size={20}
+                    className="text-gray-400 group-focus-within:text-emerald-500 transition-colors duration-200"
+                  />
                 </div>
                 <input
                   type={showPwd ? 'text' : 'password'}
@@ -141,13 +244,16 @@ export default function Signup() {
                   className="absolute inset-y-0 right-0 pr-4 flex items-center hover:bg-gray-100/50 rounded-r-2xl transition-colors duration-200"
                 >
                   {showPwd ? (
-                    <EyeOff size={20} className="text-gray-400 hover:text-gray-600" />
+                    <EyeOff
+                      size={20}
+                      className="text-gray-400 hover:text-gray-600"
+                    />
                   ) : (
                     <Eye size={20} className="text-gray-400 hover:text-gray-600" />
                   )}
                 </button>
               </div>
-              
+
               {/* Password Strength Indicator */}
               {form.password && (
                 <div className="mt-3">
@@ -156,14 +262,22 @@ export default function Signup() {
                       <div
                         key={i}
                         className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
-                          i < passwordStrength ? strengthColors[passwordStrength - 1] : 'bg-gray-200'
+                          i < passwordStrength
+                            ? strengthColors[passwordStrength - 1]
+                            : 'bg-gray-200'
                         }`}
                       ></div>
                     ))}
                   </div>
-                  <p className={`text-xs font-medium ${
-                    passwordStrength < 3 ? 'text-red-600' : passwordStrength < 4 ? 'text-yellow-600' : 'text-green-600'
-                  }`}>
+                  <p
+                    className={`text-xs font-medium ${
+                      passwordStrength < 3
+                        ? 'text-red-600'
+                        : passwordStrength < 4
+                        ? 'text-yellow-600'
+                        : 'text-green-600'
+                    }`}
+                  >
                     {strengthLabels[passwordStrength - 1] || 'Very Weak'}
                   </p>
                 </div>
@@ -177,7 +291,10 @@ export default function Signup() {
               </label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Lock size={20} className="text-gray-400 group-focus-within:text-emerald-500 transition-colors duration-200" />
+                  <Lock
+                    size={20}
+                    className="text-gray-400 group-focus-within:text-emerald-500 transition-colors duration-200"
+                  />
                 </div>
                 <input
                   type={showPwd ? 'text' : 'password'}
@@ -208,11 +325,17 @@ export default function Signup() {
                 <Shield className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
                 <div className="text-sm text-gray-700 leading-relaxed">
                   By creating an account, you agree to our{' '}
-                  <Link to="#" className="text-emerald-600 hover:text-emerald-700 font-medium">
+                  <Link
+                    to="#"
+                    className="text-emerald-600 hover:text-emerald-700 font-medium"
+                  >
                     Terms of Service
                   </Link>{' '}
                   and{' '}
-                  <Link to="#" className="text-emerald-600 hover:text-emerald-700 font-medium">
+                  <Link
+                    to="#"
+                    className="text-emerald-600 hover:text-emerald-700 font-medium"
+                  >
                     Privacy Policy
                   </Link>
                 </div>
@@ -234,7 +357,10 @@ export default function Signup() {
               ) : (
                 <div className="flex items-center justify-center relative z-10">
                   <span>Create Account</span>
-                  <ArrowRight size={18} className="ml-2 group-hover:translate-x-1 transition-transform duration-200" />
+                  <ArrowRight
+                    size={18}
+                    className="ml-2 group-hover:translate-x-1 transition-transform duration-200"
+                  />
                 </div>
               )}
             </button>
@@ -246,18 +372,23 @@ export default function Signup() {
               <div className="w-full border-t border-gray-200"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-white text-gray-500 rounded-full">Already have an account?</span>
+              <span className="px-4 bg-white text-gray-500 rounded-full">
+                Already have an account?
+              </span>
             </div>
           </div>
 
           {/* Sign In Link */}
           <div className="text-center">
-            <Link 
-              to="/login" 
+            <Link
+              to="/login"
               className="inline-flex items-center justify-center w-full py-3 px-6 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-2xl transition-all duration-200 group"
             >
               Sign In Instead
-              <ArrowRight size={16} className="ml-2 group-hover:translate-x-1 transition-transform duration-200" />
+              <ArrowRight
+                size={16}
+                className="ml-2 group-hover:translate-x-1 transition-transform duration-200"
+              />
             </Link>
           </div>
         </div>

@@ -1,7 +1,9 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Eye, EyeOff, Mail, Lock, ArrowRight, Shield, Sparkles } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { useDispatch, useSelector } from 'react-redux'
+import { adminLogin } from '../redux/authSlice.js' // update with actual path
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -9,8 +11,27 @@ const Login = () => {
     password: ''
   })
   const [showPassword, setShowPassword] = useState(false)
-  const [loading, setLoading] = useState(false)
+
+  const dispatch = useDispatch()
   const navigate = useNavigate()
+
+  // Get loading and error from auth slice
+  const { loading, error, accessToken } = useSelector(state => state.auth)
+
+  // If login success (accessToken available), navigate to dashboard
+  useEffect(() => {
+    if (accessToken) {
+      toast.success('Login successful! Welcome back!')
+      navigate('/dashboard')
+      localStorage.setItem('isAuthenticated', 'true')
+    }
+  }, [accessToken, navigate])
+
+  useEffect(() => {
+    if (error) {
+      toast.error(error.message || 'Login failed')
+    }
+  }, [error])
 
   const handleChange = (e) => {
     setFormData(prev => ({
@@ -21,19 +42,11 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    setLoading(true)
-
-    // Simulate API call
-    setTimeout(() => {
-      if (formData.email && formData.password) {
-        localStorage.setItem('isAuthenticated', 'true')
-        toast.success('Login successful! Welcome back!')
-        navigate('/dashboard')
-      } else {
-        toast.error('Please fill in all fields')
-      }
-      setLoading(false)
-    }, 1500)
+    if (!formData.email || !formData.password) {
+      toast.error('Please fill in all fields')
+      return
+    }
+    dispatch(adminLogin(formData))
   }
 
   return (
@@ -134,16 +147,16 @@ const Login = () => {
             {/* Remember Me & Forgot Password */}
             <div className="flex items-center justify-between pt-2">
               <label className="flex items-center cursor-pointer group">
-                <input 
-                  type="checkbox" 
-                  className="w-4 h-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500/20 focus:ring-2" 
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500/20 focus:ring-2"
                 />
                 <span className="ml-3 text-sm text-gray-600 group-hover:text-gray-800 transition-colors duration-200">
                   Remember me
                 </span>
               </label>
-              <Link 
-                to="#" 
+              <Link
+                to="#"
                 className="text-sm font-medium text-pink-600 hover:text-pink-700 transition-colors duration-200"
               >
                 Forgot password?
@@ -183,8 +196,8 @@ const Login = () => {
 
           {/* Sign Up Link */}
           <div className="text-center">
-            <Link 
-              to="/signup" 
+            <Link
+              to="/signup"
               className="inline-flex items-center justify-center w-full py-3 px-6 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-2xl transition-all duration-200 group"
             >
               Create New Account
@@ -197,9 +210,13 @@ const Login = () => {
         <div className="text-center mt-8">
           <p className="text-sm text-gray-500">
             By signing in, you agree to our{' '}
-            <Link to="#" className="text-pink-600 hover:text-pink-700 font-medium">Terms of Service</Link>
-            {' '}and{' '}
-            <Link to="#" className="text-pink-600 hover:text-pink-700 font-medium">Privacy Policy</Link>
+            <Link to="#" className="text-pink-600 hover:text-pink-700 font-medium">
+              Terms of Service
+            </Link>{' '}
+            and{' '}
+            <Link to="#" className="text-pink-600 hover:text-pink-700 font-medium">
+              Privacy Policy
+            </Link>
           </p>
         </div>
       </div>
@@ -207,4 +224,4 @@ const Login = () => {
   )
 }
 
-export default Login
+export default Login;

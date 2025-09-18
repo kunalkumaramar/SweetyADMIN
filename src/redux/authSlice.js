@@ -11,7 +11,7 @@ const handleResponse = async (response) => {
   return data;
 };
 
-// Async thunk for admin signup
+// Async thunk for admin signup (no auth header needed)
 export const adminSignup = createAsyncThunk(
   'auth/adminSignup',
   async (signupData, { rejectWithValue }) => {
@@ -28,7 +28,7 @@ export const adminSignup = createAsyncThunk(
   }
 );
 
-// Async thunk for admin login
+// Async thunk for admin login (no auth header needed)
 export const adminLogin = createAsyncThunk(
   'auth/adminLogin',
   async (loginData, { rejectWithValue }) => {
@@ -45,14 +45,22 @@ export const adminLogin = createAsyncThunk(
   }
 );
 
-// Async thunk to get admin profile
+// Async thunk to get admin profile (requires auth header)
 export const getAdminProfile = createAsyncThunk(
   'auth/getAdminProfile',
-  async (_, { rejectWithValue }) => {
+  async (_, { rejectWithValue, getState }) => {
     try {
+      // Get accessToken from Redux state or fallback to localStorage
+      const token = getState().auth.accessToken || localStorage.getItem('token');
+      if (!token) {
+        throw { message: 'No authentication token found' };
+      }
       const response = await fetch(`${baseURL}/admin/profile`, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
       });
       return await handleResponse(response);
     } catch (error) {
@@ -65,7 +73,7 @@ const authSlice = createSlice({
   name: 'auth',
   initialState: {
     user: null,
-    accessToken: null,
+    accessToken: localStorage.getItem('token') || null,
     loading: false,
     error: null,
     success: false,
@@ -77,6 +85,7 @@ const authSlice = createSlice({
       state.loading = false;
       state.error = null;
       state.success = false;
+      localStorage.removeItem('token');
     },
   },
   extraReducers: (builder) => {
@@ -90,6 +99,7 @@ const authSlice = createSlice({
         state.loading = false;
         state.success = true;
         state.accessToken = action.payload.data.accessToken;
+        localStorage.setItem('token', action.payload.data.accessToken);
         state.error = null;
       })
       .addCase(adminSignup.rejected, (state, action) => {
@@ -106,6 +116,7 @@ const authSlice = createSlice({
         state.loading = false;
         state.success = true;
         state.accessToken = action.payload.data.accessToken;
+        localStorage.setItem('token', action.payload.data.accessToken);
         state.error = null;
       })
       .addCase(adminLogin.rejected, (state, action) => {
