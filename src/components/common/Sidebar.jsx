@@ -4,6 +4,7 @@ import {
   LayoutDashboard, 
   Package, 
   Tag, 
+  Tags,
   ShoppingCart, 
   Percent, 
   User, 
@@ -32,6 +33,12 @@ const Sidebar = ({ isOpen, onClose }) => {
       name: 'Categories',
       icon: Tag,
       path: '/categories',
+      badge: null
+    },
+    {
+      name: 'Subcategories',
+      icon: Tags,
+      path: '/subcategories',
       badge: null
     },
     {

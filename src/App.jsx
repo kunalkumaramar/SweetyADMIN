@@ -8,6 +8,7 @@ import Signup from './pages/Signup'
 import Dashboard from './pages/Dashboard'
 import Products from './pages/Products'
 import Categories from './pages/Categories'
+import Subcategories from './pages/Subcategories'
 import Orders from './pages/Orders'
 import Discount from './pages/Discount'
 import Profile from './pages/Profile'
@@ -102,6 +103,14 @@ function App() {
             <ProtectedRoute>
               <Layout>
                 <Categories />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/subcategories" element={
+            <ProtectedRoute>
+              <Layout>
+                <Subcategories />
               </Layout>
             </ProtectedRoute>
           } />

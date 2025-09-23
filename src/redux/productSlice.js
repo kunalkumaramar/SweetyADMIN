@@ -12,17 +12,16 @@ const handleResponse = async (response) => {
 // Create Product
 export const createProduct = createAsyncThunk(
   'product/createProduct',
-  async (productData, { rejectWithValue, getState }) => {
+  async (formData, { rejectWithValue, getState }) => {
     try {
       const token = getState().auth.accessToken || localStorage.getItem('token');
       if (!token) throw { message: 'Unauthorized' };
       const response = await fetch(`${baseURL}/product/create`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(productData),
+        body: formData, // FormData for file uploads
       });
       return await handleResponse(response);
     } catch (error) {
@@ -34,17 +33,34 @@ export const createProduct = createAsyncThunk(
 // Update Product
 export const updateProduct = createAsyncThunk(
   'product/updateProduct',
-  async ({ id, updateData }, { rejectWithValue, getState }) => {
+  async ({ id, formData }, { rejectWithValue, getState }) => {
     try {
       const token = getState().auth.accessToken || localStorage.getItem('token');
       if (!token) throw { message: 'Unauthorized' };
       const response = await fetch(`${baseURL}/product/update/${id}`, {
         method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(updateData),
+        body: formData, // FormData for file uploads
+      });
+      return await handleResponse(response);
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
+// Delete Product
+export const deleteProduct = createAsyncThunk(
+  'product/deleteProduct',
+  async (id, { rejectWithValue, getState }) => {
+    try {
+      const token = getState().auth.accessToken || localStorage.getItem('token');
+      if (!token) throw { message: 'Unauthorized' };
+      const response = await fetch(`${baseURL}/product/delete/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
       });
       return await handleResponse(response);
     } catch (error) {
@@ -173,6 +189,7 @@ const productSlice = createSlice({
     success: false,
     createdProduct: null,
     updatedProduct: null,
+    deletedProductId: null,
     uploadedImages: [],
   },
   reducers: {
@@ -180,6 +197,7 @@ const productSlice = createSlice({
       state.success = false;
       state.createdProduct = null;
       state.updatedProduct = null;
+      state.deletedProductId = null;
       state.uploadedImages = [];
     },
     clearError: (state) => {
@@ -220,6 +238,23 @@ const productSlice = createSlice({
         state.updatedProduct = action.payload.data;
       })
       .addCase(updateProduct.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload || action.error.message;
+      })
+
+      // Delete Product
+      .addCase(deleteProduct.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+        state.success = false;
+      })
+      .addCase(deleteProduct.fulfilled, (state, action) => {
+        state.loading = false;
+        state.success = true;
+        state.deletedProductId = action.meta.arg;
+        state.products = state.products.filter(p => p._id !== action.meta.arg);
+      })
+      .addCase(deleteProduct.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload || action.error.message;
       })
