@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { 
-  Plus, 
-  Edit, 
-  Trash2, 
-  Search, 
+import {
+  Plus,
+  Edit,
+  Trash2,
+  Search,
   Filter,
   Tag,
   Package,
@@ -20,30 +20,29 @@ import {
   Hash
 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { 
+import {
   createSubCategory,
   updateSubCategory,
   deleteSubCategory,
   getSubCategories,
   getSubCategoriesByCategory,
   clearSuccess,
-  clearError 
+  clearError
 } from '../redux/subcategorySlice'
 import { getCategories } from '../redux/categorySlice'
 
 export default function Subcategories() {
   const dispatch = useDispatch()
-  const { 
-    subCategories, 
-    loading, 
-    error, 
-    success, 
-    createdSubCategory, 
+  const {
+    subCategories = [],
+    loading,
+    error,
+    success,
+    createdSubCategory,
     updatedSubCategory,
     deletedSubCategoryId
-  } = useSelector(state => state.subCategory)
-  
-  const { categories } = useSelector(state => state.category)
+  } = useSelector(state => state.subCategory || {})
+  const { categories = [] } = useSelector(state => state.category || {})
 
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('All')
@@ -60,13 +59,11 @@ export default function Subcategories() {
 
   const statuses = ['All', 'Active', 'Inactive']
 
-  // Load subcategories and categories on component mount
   useEffect(() => {
     dispatch(getSubCategories())
     dispatch(getCategories())
   }, [dispatch])
 
-  // Handle success/error states
   useEffect(() => {
     if (success) {
       if (createdSubCategory) {
@@ -93,14 +90,17 @@ export default function Subcategories() {
     }
   }, [error, dispatch])
 
-  // Filter subcategories based on search and filters
-  const filtered = subCategories.filter(subcategory => {
-    const matchesSearch = subcategory.name?.toLowerCase().includes(search.toLowerCase()) ||
-                         subcategory.description?.toLowerCase().includes(search.toLowerCase())
-    const matchesCategory = categoryFilter === 'All' || subcategory.categoryId?._id === categoryFilter
-    const matchesStatus = statusFilter === 'All' || 
-                         (statusFilter === 'Active' && subcategory.isActive) ||
-                         (statusFilter === 'Inactive' && !subcategory.isActive)
+  const filtered = subCategories.filter(sub => {
+    const matchesSearch =
+      sub.name.toLowerCase().includes(search.toLowerCase()) ||
+      sub.description.toLowerCase().includes(search.toLowerCase())
+    const matchesCategory =
+      categoryFilter === 'All' ||
+      sub.categoryId?._id === categoryFilter
+    const matchesStatus =
+      statusFilter === 'All' ||
+      (statusFilter === 'Active' && sub.isActive) ||
+      (statusFilter === 'Inactive' && !sub.isActive)
     return matchesSearch && matchesCategory && matchesStatus
   })
 
@@ -115,7 +115,7 @@ export default function Subcategories() {
     setEditingSubcategory(null)
   }
 
-  const handleInputChange = (e) => {
+  const handleInputChange = e => {
     const { name, value, type, checked } = e.target
     setFormData(prev => ({
       ...prev,
@@ -123,58 +123,54 @@ export default function Subcategories() {
     }))
   }
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = e => {
     e.preventDefault()
-    
     if (!formData.name || !formData.categoryId || !formData.description) {
       toast.error('Please fill in all required fields')
       return
     }
-
     const submitData = {
       name: formData.name,
       description: formData.description,
-      categoryId: formData.categoryId,
+      category: formData.categoryId,
       isActive: formData.isActive
     }
-
     if (editingSubcategory) {
-      dispatch(updateSubCategory({ 
-        id: editingSubcategory._id, 
-        updateData: submitData 
+      dispatch(updateSubCategory({
+        id: editingSubcategory._id,
+        updateData: submitData
       }))
     } else {
       dispatch(createSubCategory(submitData))
     }
   }
 
-  const handleEdit = (subcategory) => {
-    setEditingSubcategory(subcategory)
+  const handleEdit = sub => {
+    setEditingSubcategory(sub)
     setFormData({
-      name: subcategory.name || '',
-      description: subcategory.description || '',
-      categoryId: subcategory.categoryId?._id || '',
-      isActive: subcategory.isActive !== false
+      name: sub.name,
+      description: sub.description,
+      categoryId: sub.categoryId?._id || '',
+      isActive: sub.isActive !== false
     })
     setShowAddModal(true)
   }
 
-  const handleDelete = (subcategory) => {
-    if (window.confirm(`Are you sure you want to delete "${subcategory.name}"?`)) {
-      dispatch(deleteSubCategory(subcategory._id))
+  const handleDelete = sub => {
+    if (window.confirm(`Delete "${sub.name}"?`)) {
+      dispatch(deleteSubCategory(sub._id))
     }
   }
 
-  const handleCategoryFilter = (categoryId) => {
-    setCategoryFilter(categoryId)
-    if (categoryId !== 'All') {
-      dispatch(getSubCategoriesByCategory(categoryId))
+  const handleCategoryFilter = id => {
+    setCategoryFilter(id)
+    if (id !== 'All') {
+      dispatch(getSubCategoriesByCategory(id))
     } else {
       dispatch(getSubCategories())
     }
   }
 
-  // Calculate stats from current subcategories
   const stats = {
     total: filtered.length,
     active: filtered.filter(s => s.isActive).length,
@@ -183,8 +179,7 @@ export default function Subcategories() {
   }
 
   const SubcategoryCard = ({ subcategory }) => {
-    const categoryName = subcategory.categoryId?.name || 'Unknown Category'
-    
+    const categoryName = subcategory.categoryId?.name || 'Unknown' 
     return (
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-white/50 group">
         <div className="space-y-4">
