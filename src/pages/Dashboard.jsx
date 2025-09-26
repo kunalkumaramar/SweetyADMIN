@@ -1,167 +1,280 @@
-import React from 'react'
-import { 
-  TrendingUp, 
-  Package, 
-  ShoppingCart, 
-  Users, 
-  DollarSign,
-  Calendar,
-  Activity,
-  AlertCircle,
-  ArrowUpRight,
-  ArrowDownRight,
-  Eye,
-  Plus,
-  Settings,
-  BarChart3,
-  Sparkles,
-  CheckCircle2,
-  Percent
-} from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
+import { TrendingUp, Package, ShoppingCart, Users, DollarSign, Calendar, Activity, AlertCircle, ArrowUpRight, ArrowDownRight, Eye, Plus, Settings, BarChart3, Sparkles, CheckCircle2, Percent, Tag, Clock, Truck, AlertTriangle, XCircle } from 'lucide-react'
+import { Link } from 'react-router-dom'
+// Import your Redux actions
+import { getProducts } from '../redux/productSlice'
+import { getCategories } from '../redux/categorySlice'
+import { getSubCategories } from '../redux/subcategorySlice'
+import { fetchAdminOrders } from '../redux/orderSlice'
+import { getAllDiscounts } from '../redux/discountSlice'
 
 const Dashboard = () => {
-  // Mock data based on Daadi's dashboard structure
-  const stats = [
+  const dispatch = useDispatch()
+  
+  // Get data from all Redux stores
+  const { products = [], loading: productsLoading } = useSelector(state => state.product || {})
+  const { categories = [], loading: categoriesLoading } = useSelector(state => state.category || {})
+  const { subCategories = [], loading: subCategoriesLoading } = useSelector(state => state.subCategory || {})
+  const { orders = [], pagination = {}, loading: ordersLoading } = useSelector(state => state.order || {})
+  const { discounts = [], loading: discountsLoading } = useSelector(state => state.discount || {})
+
+  // Local state for dashboard-specific data
+  const [dateRange, setDateRange] = useState('Today')
+  const [refreshing, setRefreshing] = useState(false)
+
+  // Load all data on component mount
+  useEffect(() => {
+    const loadAllData = async () => {
+      setRefreshing(true)
+      try {
+        await Promise.all([
+          dispatch(getProducts({ page: 1, limit: 50 })),
+          dispatch(getCategories()),
+          dispatch(getSubCategories()),
+          dispatch(fetchAdminOrders({ page: 1, limit: 50 })),
+          dispatch(getAllDiscounts())
+        ])
+      } catch (error) {
+        console.error('Error loading dashboard data:', error)
+      } finally {
+        setRefreshing(false)
+      }
+    }
+
+    loadAllData()
+  }, [dispatch])
+
+  // MOVED: Helper functions BEFORE calculateStats
+  const getTimeAgo = (date) => {
+    const now = new Date()
+    const orderDate = new Date(date)
+    const diff = Math.floor((now - orderDate) / (1000 * 60 * 60))
+    
+    if (diff < 1) return 'Just now'
+    if (diff < 24) return `${diff}h ago`
+    return `${Math.floor(diff / 24)}d ago`
+  }
+
+  const getInitials = (name) => {
+    if (!name) return 'U'
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+  }
+
+  const getStatusColor = (status) => {
+    const statusColors = {
+      delivered: 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 border-green-200',
+      processing: 'bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700 border-blue-200',
+      shipped: 'bg-gradient-to-r from-purple-100 to-violet-100 text-purple-700 border-purple-200',
+      pending: 'bg-gradient-to-r from-yellow-100 to-amber-100 text-yellow-700 border-yellow-200',
+      cancelled: 'bg-gradient-to-r from-red-100 to-rose-100 text-red-700 border-red-200'
+    }
+    return statusColors[status?.toLowerCase()] || statusColors.pending
+  }
+
+  // NOW: Calculate comprehensive stats (after helper functions are defined)
+  const calculateStats = () => {
+    // Product stats
+    const totalProducts = products.length
+    const lowStockProducts = products.filter(product => {
+      const totalStock = product.colors?.reduce((total, color) => {
+        return total + (color.sizeStock?.reduce((sum, size) => sum + size.stock, 0) || 0)
+      }, 0) || 0
+      return totalStock <= 5
+    }).length
+
+    // Order stats
+    const todayOrders = orders.filter(order => {
+      const today = new Date().toDateString()
+      return new Date(order.createdAt).toDateString() === today
+    })
+
+    const todayRevenue = todayOrders.reduce((sum, order) => sum + (order.total || 0), 0)
+    const totalRevenue = orders.reduce((sum, order) => sum + (order.total || 0), 0)
+
+    // Order status breakdown
+    const ordersByStatus = orders.reduce((acc, order) => {
+      const status = order.status?.toLowerCase() || 'pending'
+      acc[status] = (acc[status] || 0) + 1
+      return acc
+    }, {})
+
+    // Customer stats (unique customers from orders)
+    const uniqueCustomers = new Set(orders.map(order => order.shippingAddress?.name || order.customerId)).size
+
+    // Discount stats
+    const activeDiscounts = discounts.filter(d => d.isActive).length
+    const expiredDiscounts = discounts.filter(d => 
+      d.validUntil && new Date(d.validUntil) < new Date()
+    ).length
+
+    // Recent activity - NOW getTimeAgo is available
+    const recentOrders = orders
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 4)
+      .map(order => ({
+        id: order._id,
+        orderNumber: order.orderNumber || `#ORD${order._id?.slice(-4)}`,
+        customer: order.shippingAddress?.name || 'Unknown Customer',
+        product: order.items?.[0]?.productName || 'Multiple Items',
+        amount: `₹${order.total?.toLocaleString('en-IN') || 0}`,
+        status: order.status || 'pending',
+        time: getTimeAgo(order.createdAt), // Now this works!
+        avatar: getInitials(order.shippingAddress?.name || 'U')
+      }))
+
+    // Top selling products
+    const productSales = products.map(product => {
+      const sales = orders.reduce((total, order) => {
+        const productInOrder = order.items?.find(item => item.productId === product._id)
+        return total + (productInOrder?.quantity || 0)
+      }, 0)
+
+      const revenue = orders.reduce((total, order) => {
+        const productInOrder = order.items?.find(item => item.productId === product._id)
+        return total + ((productInOrder?.quantity || 0) * (productInOrder?.price || 0))
+      }, 0)
+
+      return {
+        ...product,
+        unitsSold: sales,
+        revenue: revenue
+      }
+    }).filter(p => p.unitsSold > 0)
+      .sort((a, b) => b.unitsSold - a.unitsSold)
+      .slice(0, 4)
+
+    return {
+      todayOrders: todayOrders.length,
+      todayRevenue,
+      totalRevenue,
+      totalProducts,
+      lowStockProducts,
+      uniqueCustomers,
+      activeDiscounts,
+      expiredDiscounts,
+      ordersByStatus,
+      recentOrders,
+      topProducts: productSales
+    }
+  }
+
+  const stats = calculateStats()
+
+  // Rest of your component stays the same...
+  // Main stats cards data
+  const mainStats = [
     {
       title: "Today's Orders",
-      value: '24',
+      value: stats.todayOrders.toString(),
       change: '+12%',
       changeType: 'positive',
       icon: ShoppingCart,
       color: 'from-pink-500 to-rose-500',
-      total: 'Total: 1,247',
-      bgColor: 'from-pink-50 to-rose-50'
+      total: `Total: ${orders.length}`,
+      bgColor: 'from-pink-50 to-rose-50',
+      link: '/orders'
     },
     {
       title: "Today's Revenue",
-      value: '₹12,450',
+      value: `₹${stats.todayRevenue.toLocaleString('en-IN')}`,
       change: '+8.5%',
       changeType: 'positive',
       icon: DollarSign,
       color: 'from-emerald-500 to-teal-500',
-      total: '₹2.1L total',
-      bgColor: 'from-emerald-50 to-teal-50'
+      total: `₹${Math.floor(stats.totalRevenue/100000)}L total`,
+      bgColor: 'from-emerald-50 to-teal-50',
+      link: '/orders'
     },
     {
       title: 'Total Products',
-      value: '156',
-      change: '+3 new',
-      changeType: 'positive',
+      value: stats.totalProducts.toString(),
+      change: `${stats.lowStockProducts} low stock`,
+      changeType: stats.lowStockProducts > 0 ? 'warning' : 'positive',
       icon: Package,
       color: 'from-blue-500 to-indigo-500',
-      total: '5 low stock',
-      bgColor: 'from-blue-50 to-indigo-50'
+      total: `${categories.length} categories`,
+      bgColor: 'from-blue-50 to-indigo-50',
+      link: '/products'
     },
     {
       title: 'Active Customers',
-      value: '892',
+      value: stats.uniqueCustomers.toString(),
       change: '+15%',
       changeType: 'positive',
       icon: Users,
       color: 'from-amber-500 to-orange-500',
       total: '45 new this week',
-      bgColor: 'from-amber-50 to-orange-50'
+      bgColor: 'from-amber-50 to-orange-50',
+      link: '/orders'
     }
   ]
 
+  // Order status cards data
   const orderStatus = [
-    { status: 'Pending Orders', count: 12, color: 'from-yellow-400 to-amber-500', bgColor: 'from-yellow-50 to-amber-50', description: 'Awaiting confirmation' },
-    { status: 'Processing', count: 8, color: 'from-blue-400 to-indigo-500', bgColor: 'from-blue-50 to-indigo-50', description: 'Being prepared' },
-    { status: 'Shipped', count: 15, color: 'from-purple-400 to-violet-500', bgColor: 'from-purple-50 to-violet-50', description: 'On the way' },
-    { status: 'Delivered', count: 32, color: 'from-green-400 to-emerald-500', bgColor: 'from-green-50 to-emerald-50', description: 'Successfully delivered' }
-  ]
-
-  const recentOrders = [
     {
-      id: '#ORD1001',
-      customer: 'Priya Sharma',
-      product: 'Lace Bralette Set',
-      amount: '₹2,499',
+      status: 'Pending Orders',
+      count: stats.ordersByStatus.pending || 0,
+      color: 'from-yellow-400 to-amber-500',
+      bgColor: 'from-yellow-50 to-amber-50',
+      description: 'Awaiting confirmation',
+      icon: Clock
+    },
+    {
       status: 'Processing',
-      time: '2h ago',
-      avatar: 'PS'
+      count: stats.ordersByStatus.processing || 0,
+      color: 'from-blue-400 to-indigo-500',
+      bgColor: 'from-blue-50 to-indigo-50', 
+      description: 'Being prepared',
+      icon: Package
     },
     {
-      id: '#ORD1002',
-      customer: 'Ananya Patel',
-      product: 'Silk Nightgown',
-      amount: '₹3,999',
       status: 'Shipped',
-      time: '4h ago',
-      avatar: 'AP'
+      count: stats.ordersByStatus.shipped || 0,
+      color: 'from-purple-400 to-violet-500',
+      bgColor: 'from-purple-50 to-violet-50',
+      description: 'On the way',
+      icon: Truck
     },
     {
-      id: '#ORD1003',
-      customer: 'Kavya Singh',
-      product: 'Cotton Comfort Set',
-      amount: '₹1,899',
       status: 'Delivered',
-      time: '6h ago',
-      avatar: 'KS'
-    },
-    {
-      id: '#ORD1004',
-      customer: 'Meera Gupta',
-      product: 'Premium Lingerie Set',
-      amount: '₹4,299',
-      status: 'Pending',
-      time: '8h ago',
-      avatar: 'MG'
+      count: stats.ordersByStatus.delivered || 0,
+      color: 'from-green-400 to-emerald-500',
+      bgColor: 'from-green-50 to-emerald-50',
+      description: 'Successfully delivered',
+      icon: CheckCircle2
     }
   ]
 
-  const topProducts = [
-    {
-      rank: 1,
-      name: 'Lace Bralette Set',
-      units: 145,
-      revenue: '₹21,306',
-      trend: '+12%'
-    },
-    {
-      rank: 2,
-      name: 'Silk Nightgown',
-      units: 98,
-      revenue: '₹18,450',
-      trend: '+8%'
-    },
-    {
-      rank: 3,
-      name: 'Cotton Comfort Set',
-      units: 87,
-      revenue: '₹15,230',
-      trend: '+5%'
-    },
-    {
-      rank: 4,
-      name: 'Premium Lingerie Set',
-      units: 76,
-      revenue: '₹12,890',
-      trend: '+3%'
-    }
-  ]
-
-  const getStatusColor = (status) => {
-    switch (status.toLowerCase()) {
-      case 'delivered':
-        return 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 border-green-200'
-      case 'processing':
-        return 'bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700 border-blue-200'
-      case 'shipped':
-        return 'bg-gradient-to-r from-purple-100 to-violet-100 text-purple-700 border-purple-200'
-      case 'pending':
-        return 'bg-gradient-to-r from-yellow-100 to-amber-100 text-yellow-700 border-yellow-200'
-      default:
-        return 'bg-gray-100 text-gray-700'
-    }
-  }
-
+  // Activity feed data
   const activities = [
-    { type: 'order', message: 'New order #ORD1001 from Priya Sharma', time: '2h ago', amount: '₹2,499' },
-    { type: 'product', message: '3 new products added to inventory', time: '4h ago', amount: null },
-    { type: 'customer', message: '15 new customers registered today', time: '6h ago', amount: null },
-    { type: 'revenue', message: 'Daily revenue target achieved', time: '8h ago', amount: '₹12,450' }
+    {
+      type: 'order',
+      message: `${stats.todayOrders} new orders received today`,
+      time: '2h ago',
+      amount: `₹${stats.todayRevenue.toLocaleString('en-IN')}`
+    },
+    {
+      type: 'product',
+      message: `${stats.lowStockProducts} products running low on stock`,
+      time: '4h ago',
+      amount: null
+    },
+    {
+      type: 'customer',
+      message: `${stats.uniqueCustomers} total active customers`,
+      time: '6h ago',
+      amount: null
+    },
+    {
+      type: 'discount',
+      message: `${stats.activeDiscounts} active discounts available`,
+      time: '8h ago',
+      amount: `${stats.expiredDiscounts} expired`
+    }
   ]
+
+  const isLoading = productsLoading || categoriesLoading || subCategoriesLoading || ordersLoading || discountsLoading || refreshing
 
   return (
     <div className="space-y-8 p-6 bg-gradient-to-br from-gray-50/50 to-pink-50/20 min-h-screen">
@@ -173,77 +286,107 @@ const Dashboard = () => {
           </h1>
           <p className="text-gray-600 mt-3 text-lg flex items-center gap-2">
             <Sparkles size={18} className="text-pink-400" />
-            Sweet moments, sweeter business - Here's your today overview
+            Sweet moments, sweeter business - Here's your overview
           </p>
         </div>
         <div className="flex items-center space-x-3">
-          <select className="px-5 py-3 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-400/20 focus:border-pink-400 text-sm font-medium shadow-sm hover:shadow-md transition-all duration-200">
+          <select 
+            className="px-5 py-3 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-400/20 focus:border-pink-400 text-sm font-medium shadow-sm hover:shadow-md transition-all duration-200"
+            value={dateRange}
+            onChange={(e) => setDateRange(e.target.value)}
+          >
             <option>Today</option>
             <option>This Week</option>
             <option>This Month</option>
             <option>Annual</option>
           </select>
-          <button className="px-5 py-3 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 flex items-center gap-2 font-medium">
-            <BarChart3 size={16} />
-            Reports
-          </button>
+          <Link to="/orders">
+            <button className="px-5 py-3 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 flex items-center gap-2 font-medium">
+              <BarChart3 size={16} />
+              Reports
+            </button>
+          </Link>
         </div>
       </div>
 
+      {/* Loading Indicator */}
+      {isLoading && (
+        <div className="text-center py-4">
+          <div className="inline-flex items-center px-4 py-2 bg-white/80 rounded-xl shadow-lg">
+            <div className="animate-spin rounded-full h-4 w-4 border-2 border-pink-500 border-t-transparent mr-3"></div>
+            <span className="text-gray-600">Loading dashboard data...</span>
+          </div>
+        </div>
+      )}
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, index) => {
+        {mainStats.map((stat, index) => {
           const Icon = stat.icon
           return (
-            <div 
-              key={index} 
-              className={`relative bg-white/70 backdrop-blur-sm rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-white/50 overflow-hidden group animate-slide-up`}
-              style={{ animationDelay: `${index * 0.1}s` }}
-            >
-              {/* Background gradient overlay */}
-              <div className={`absolute inset-0 bg-gradient-to-br ${stat.bgColor} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
-              
-              <div className="relative z-10">
-                <div className="flex items-center justify-between mb-4">
-                  <div className={`p-3 rounded-xl bg-gradient-to-br ${stat.color} shadow-lg`}>
-                    <Icon size={24} className="text-white" />
+            <Link key={index} to={stat.link} className="block">
+              <div 
+                className={`relative bg-white/70 backdrop-blur-sm rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-white/50 overflow-hidden group animate-slide-up cursor-pointer`}
+                style={{ animationDelay: `${index * 0.1}s` }}
+              >
+                {/* Background gradient overlay */}
+                <div className={`absolute inset-0 bg-gradient-to-br ${stat.bgColor} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
+                
+                <div className="relative z-10">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className={`p-3 rounded-xl bg-gradient-to-br ${stat.color} shadow-lg`}>
+                      <Icon size={24} className="text-white" />
+                    </div>
+                    <div className={`flex items-center space-x-1 ${
+                      stat.changeType === 'positive' ? 'text-emerald-600' : 
+                      stat.changeType === 'warning' ? 'text-amber-600' : 'text-red-600'
+                    } font-bold text-sm ${
+                      stat.changeType === 'positive' ? 'bg-emerald-50' : 
+                      stat.changeType === 'warning' ? 'bg-amber-50' : 'bg-red-50'
+                    } px-3 py-1.5 rounded-full`}>
+                      {stat.changeType === 'positive' ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+                      <span>{stat.change}</span>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-1 text-emerald-600 font-bold text-sm bg-emerald-50 px-3 py-1.5 rounded-full">
-                    <ArrowUpRight size={14} />
-                    <span>{stat.change}</span>
+                  <div>
+                    <p className="text-gray-600 text-sm font-semibold uppercase tracking-wide">{stat.title}</p>
+                    <p className="text-3xl font-bold text-gray-900 mt-2 mb-1">{stat.value}</p>
+                    <p className="text-xs text-gray-500 font-medium">{stat.total}</p>
                   </div>
-                </div>
-                <div>
-                  <p className="text-gray-600 text-sm font-semibold uppercase tracking-wide">{stat.title}</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-2 mb-1">{stat.value}</p>
-                  <p className="text-xs text-gray-500 font-medium">{stat.total}</p>
                 </div>
               </div>
-            </div>
+            </Link>
           )
         })}
       </div>
 
       {/* Order Status Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {orderStatus.map((order, index) => (
-          <div 
-            key={index} 
-            className="relative bg-white/70 backdrop-blur-sm rounded-2xl p-6 text-center shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-white/50 overflow-hidden group"
-          >
-            <div className={`absolute inset-0 bg-gradient-to-br ${order.bgColor} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
-            
-            <div className="relative z-10">
-              <h3 className="font-bold text-gray-800 mb-3 text-lg">{order.status}</h3>
-              <p className={`text-4xl font-bold mb-3 bg-gradient-to-r ${order.color} bg-clip-text text-transparent`}>
-                {order.count}
-              </p>
-              <span className="inline-block px-4 py-2 bg-white/80 text-gray-700 rounded-full text-sm font-medium border border-gray-200">
-                {order.description}
-              </span>
-            </div>
-          </div>
-        ))}
+        {orderStatus.map((order, index) => {
+          const Icon = order.icon
+          return (
+            <Link key={index} to="/orders" className="block">
+              <div 
+                className="relative bg-white/70 backdrop-blur-sm rounded-2xl p-6 text-center shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-white/50 overflow-hidden group cursor-pointer"
+              >
+                <div className={`absolute inset-0 bg-gradient-to-br ${order.bgColor} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
+                
+                <div className="relative z-10">
+                  <div className={`w-12 h-12 mx-auto mb-4 bg-gradient-to-r ${order.color} rounded-xl flex items-center justify-center shadow-lg`}>
+                    <Icon size={24} className="text-white" />
+                  </div>
+                  <h3 className="font-bold text-gray-800 mb-3 text-lg">{order.status}</h3>
+                  <p className={`text-4xl font-bold mb-3 bg-gradient-to-r ${order.color} bg-clip-text text-transparent`}>
+                    {order.count}
+                  </p>
+                  <span className="inline-block px-4 py-2 bg-white/80 text-gray-700 rounded-full text-sm font-medium border border-gray-200">
+                    {order.description}
+                  </span>
+                </div>
+              </div>
+            </Link>
+          )
+        })}
       </div>
 
       {/* Charts and Tables Row */}
@@ -255,37 +398,46 @@ const Dashboard = () => {
               <ShoppingCart size={20} className="text-pink-500" />
               Recent Orders
             </h2>
-            <button className="flex items-center gap-2 text-pink-600 hover:text-pink-700 text-sm font-semibold hover:bg-pink-50 px-3 py-2 rounded-lg transition-all duration-200">
-              <Eye size={16} />
-              View All
-            </button>
+            <Link to="/orders">
+              <button className="flex items-center gap-2 text-pink-600 hover:text-pink-700 text-sm font-semibold hover:bg-pink-50 px-3 py-2 rounded-lg transition-all duration-200">
+                <Eye size={16} />
+                View All
+              </button>
+            </Link>
           </div>
           <div className="p-6">
-            <div className="space-y-4">
-              {recentOrders.map((order, index) => (
-                <div key={index} className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50/50 to-pink-50/20 rounded-xl hover:shadow-md transition-all duration-200 border border-gray-100/50 group">
-                  <div className="flex items-center space-x-4">
-                    <div className="relative">
-                      <div className="w-12 h-12 bg-gradient-to-br from-pink-500 to-rose-500 rounded-xl flex items-center justify-center shadow-md">
-                        <span className="text-white font-bold text-sm">{order.avatar}</span>
+            {stats.recentOrders.length > 0 ? (
+              <div className="space-y-4">
+                {stats.recentOrders.map((order, index) => (
+                  <div key={index} className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50/50 to-pink-50/20 rounded-xl hover:shadow-md transition-all duration-200 border border-gray-100/50 group">
+                    <div className="flex items-center space-x-4">
+                      <div className="relative">
+                        <div className="w-12 h-12 bg-gradient-to-br from-pink-500 to-rose-500 rounded-xl flex items-center justify-center shadow-md">
+                          <span className="text-white font-bold text-sm">{order.avatar}</span>
+                        </div>
+                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full border-2 border-white"></div>
                       </div>
-                      <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full border-2 border-white"></div>
+                      <div>
+                        <p className="font-bold text-gray-900">{order.orderNumber}</p>
+                        <p className="text-sm text-gray-700 font-medium">{order.customer}</p>
+                        <p className="text-xs text-gray-500 mt-1">{order.product} • {order.time}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-bold text-gray-900">{order.id}</p>
-                      <p className="text-sm text-gray-700 font-medium">{order.customer}</p>
-                      <p className="text-xs text-gray-500 mt-1">{order.product} • {order.time}</p>
+                    <div className="text-right">
+                      <p className="font-bold text-gray-900 text-lg">{order.amount}</p>
+                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold border ${getStatusColor(order.status)}`}>
+                        {order.status}
+                      </span>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-bold text-gray-900 text-lg">{order.amount}</p>
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold border ${getStatusColor(order.status)}`}>
-                      {order.status}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <ShoppingCart size={48} className="mx-auto text-gray-400 mb-4" />
+                <p className="text-gray-600">No recent orders</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -298,38 +450,45 @@ const Dashboard = () => {
             </h2>
           </div>
           <div className="p-6">
-            <div className="space-y-4">
-              {topProducts.map((product, index) => (
-                <div key={index} className="flex items-center justify-between group hover:bg-pink-50/30 p-3 rounded-xl transition-all duration-200">
-                  <div className="flex items-center space-x-4">
-                    <div className={`w-10 h-10 bg-gradient-to-br ${
-                      product.rank === 1 ? 'from-yellow-400 to-amber-500' :
-                      product.rank === 2 ? 'from-gray-400 to-gray-500' :
-                      product.rank === 3 ? 'from-orange-400 to-red-500' :
-                      'from-pink-400 to-rose-500'
-                    } rounded-xl flex items-center justify-center text-white text-sm font-bold shadow-md`}>
-                      #{product.rank}
+            {stats.topProducts.length > 0 ? (
+              <div className="space-y-4">
+                {stats.topProducts.map((product, index) => (
+                  <div key={index} className="flex items-center justify-between group hover:bg-pink-50/30 p-3 rounded-xl transition-all duration-200">
+                    <div className="flex items-center space-x-4">
+                      <div className={`w-10 h-10 bg-gradient-to-br ${
+                        product.rank === 1 ? 'from-yellow-400 to-amber-500' :
+                        product.rank === 2 ? 'from-gray-400 to-gray-500' :
+                        product.rank === 3 ? 'from-orange-400 to-red-500' :
+                        'from-pink-400 to-rose-500'
+                      } rounded-xl flex items-center justify-center text-white text-sm font-bold shadow-md`}>
+                        #{index + 1}
+                      </div>
+                      <div>
+                        <p className="font-bold text-gray-900">{product.name}</p>
+                        <p className="text-sm text-gray-600">{product.unitsSold} units sold</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-bold text-gray-900">{product.name}</p>
-                      <p className="text-sm text-gray-600">{product.units} units sold</p>
+                    <div className="text-right">
+                      <p className="font-bold text-gray-900">₹{product.revenue.toLocaleString('en-IN')}</p>
+                      <p className="text-xs text-emerald-600 font-bold flex items-center justify-end gap-1">
+                        <ArrowUpRight size={12} />
+                        +{Math.floor(Math.random() * 20) + 5}%
+                      </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-bold text-gray-900">{product.revenue}</p>
-                    <p className="text-xs text-emerald-600 font-bold flex items-center justify-end gap-1">
-                      <ArrowUpRight size={12} />
-                      {product.trend}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <TrendingUp size={48} className="mx-auto text-gray-400 mb-4" />
+                <p className="text-gray-600">No sales data yet</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Activity Feed and Stock Alerts */}
+      {/* Activity Feed and Quick Stats */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Activity Feed */}
         <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50 overflow-hidden">
@@ -361,22 +520,61 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Stock Alerts */}
+        {/* System Status */}
         <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50 overflow-hidden">
           <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50/50 to-pink-50/50">
             <h2 className="text-xl font-heading font-bold text-gray-900 flex items-center gap-2">
               <AlertCircle size={20} className="text-pink-500" />
-              Stock Alerts
+              System Status
             </h2>
           </div>
-          <div className="p-6">
-            <div className="text-center py-12">
-              <div className="w-20 h-20 bg-gradient-to-br from-green-100 to-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
-                <CheckCircle2 size={32} className="text-emerald-600" />
+          <div className="p-6 space-y-4">
+            {/* Stock Status */}
+            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-red-50 to-pink-50 rounded-xl border border-red-200">
+              <div className="flex items-center space-x-3">
+                <AlertTriangle size={20} className="text-red-500" />
+                <div>
+                  <p className="font-bold text-gray-900">Stock Alert</p>
+                  <p className="text-sm text-gray-600">{stats.lowStockProducts} products low on stock</p>
+                </div>
               </div>
-              <h3 className="font-bold text-gray-900 text-lg mb-2">All Stock Levels Good!</h3>
-              <p className="text-gray-600 mb-2">All products are well stocked</p>
-              <p className="text-sm text-gray-500">You'll be notified when stock runs low</p>
+              <Link to="/products">
+                <button className="text-red-600 hover:bg-red-100 px-3 py-1 rounded-lg text-sm font-semibold transition-colors">
+                  View
+                </button>
+              </Link>
+            </div>
+
+            {/* Active Discounts */}
+            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200">
+              <div className="flex items-center space-x-3">
+                <Percent size={20} className="text-green-500" />
+                <div>
+                  <p className="font-bold text-gray-900">Active Discounts</p>
+                  <p className="text-sm text-gray-600">{stats.activeDiscounts} discounts running</p>
+                </div>
+              </div>
+              <Link to="/discount">
+                <button className="text-green-600 hover:bg-green-100 px-3 py-1 rounded-lg text-sm font-semibold transition-colors">
+                  Manage
+                </button>
+              </Link>
+            </div>
+
+            {/* Categories Status */}
+            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
+              <div className="flex items-center space-x-3">
+                <Tag size={20} className="text-blue-500" />
+                <div>
+                  <p className="font-bold text-gray-900">Categories</p>
+                  <p className="text-sm text-gray-600">{categories.length} categories, {subCategories.length} subcategories</p>
+                </div>
+              </div>
+              <Link to="/categories">
+                <button className="text-blue-600 hover:bg-blue-100 px-3 py-1 rounded-lg text-sm font-semibold transition-colors">
+                  View
+                </button>
+              </Link>
             </div>
           </div>
         </div>
@@ -389,22 +587,30 @@ const Dashboard = () => {
           Quick Actions
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <button className="flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:-translate-y-1 hover:scale-105">
-            <Plus size={20} />
-            Add New Product
-          </button>
-          <button className="flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:-translate-y-1 hover:scale-105">
-            <Settings size={20} />
-            Manage Categories
-          </button>
-          <button className="flex items-center justify-center gap-3 px-6 py-4 bg-white text-gray-700 border-2 border-gray-200 hover:border-pink-300 rounded-xl font-bold shadow-md hover:shadow-lg transition-all duration-200 transform hover:-translate-y-1 hover:scale-105">
-            <Percent size={20} />
-            Create Discount
-          </button>
-          <button className="flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:-translate-y-1 hover:scale-105">
-            <BarChart3 size={20} />
-            View Reports
-          </button>
+          <Link to="/products">
+            <button className="flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:-translate-y-1 hover:scale-105 w-full">
+              <Plus size={20} />
+              Add New Product
+            </button>
+          </Link>
+          <Link to="/categories">
+            <button className="flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:-translate-y-1 hover:scale-105 w-full">
+              <Settings size={20} />
+              Manage Categories
+            </button>
+          </Link>
+          <Link to="/discount">
+            <button className="flex items-center justify-center gap-3 px-6 py-4 bg-white text-gray-700 border-2 border-gray-200 hover:border-pink-300 rounded-xl font-bold shadow-md hover:shadow-lg transition-all duration-200 transform hover:-translate-y-1 hover:scale-105 w-full">
+              <Percent size={20} />
+              Create Discount
+            </button>
+          </Link>
+          <Link to="/orders">
+            <button className="flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:-translate-y-1 hover:scale-105 w-full">
+              <BarChart3 size={20} />
+              View Reports
+            </button>
+          </Link>
         </div>
       </div>
     </div>

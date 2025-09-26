@@ -12,7 +12,8 @@ const handleResponse = async (response) => {
 // Create Product
 export const createProduct = createAsyncThunk(
   'product/createProduct',
-  async (formData, { rejectWithValue, getState }) => {
+  // 1. Rename 'formData' to 'productData' for clarity
+  async (productData, { rejectWithValue, getState }) => {
     try {
       const token = getState().auth.accessToken || localStorage.getItem('token');
       if (!token) throw { message: 'Unauthorized' };
@@ -20,8 +21,11 @@ export const createProduct = createAsyncThunk(
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
+          // 2. Add Content-Type header
+          'Content-Type': 'application/json',
         },
-        body: formData, // FormData for file uploads
+        // 3. Stringify the JSON payload
+        body: JSON.stringify(productData),
       });
       return await handleResponse(response);
     } catch (error) {
@@ -33,7 +37,8 @@ export const createProduct = createAsyncThunk(
 // Update Product
 export const updateProduct = createAsyncThunk(
   'product/updateProduct',
-  async ({ id, formData }, { rejectWithValue, getState }) => {
+  // 1. Rename '{ id, formData }' to '{ id, productData }'
+  async ({ id, productData }, { rejectWithValue, getState }) => {
     try {
       const token = getState().auth.accessToken || localStorage.getItem('token');
       if (!token) throw { message: 'Unauthorized' };
@@ -41,8 +46,11 @@ export const updateProduct = createAsyncThunk(
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,
+          // 2. Add Content-Type header
+          'Content-Type': 'application/json',
         },
-        body: formData, // FormData for file uploads
+        // 3. Stringify the JSON payload
+        body: JSON.stringify(productData),
       });
       return await handleResponse(response);
     } catch (error) {

@@ -17,14 +17,24 @@ export const createCategory = createAsyncThunk(
       const token = getState().auth.accessToken || localStorage.getItem('token');
       if (!token) throw { message: 'Unauthorized' };
 
+      // Determine if categoryData is FormData or regular object
+      const isFormData = categoryData instanceof FormData;
+      
+      const headers = {
+        Authorization: `Bearer ${token}`,
+      };
+      
+      // Only add Content-Type for JSON, let browser set it for FormData
+      if (!isFormData) {
+        headers['Content-Type'] = 'application/json';
+      }
+
       const response = await fetch(`${baseURL}/category/create`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(categoryData),
+        headers,
+        body: isFormData ? categoryData : JSON.stringify(categoryData),
       });
+
       return await handleResponse(response);
     } catch (error) {
       return rejectWithValue(error);
@@ -40,14 +50,24 @@ export const updateCategory = createAsyncThunk(
       const token = getState().auth.accessToken || localStorage.getItem('token');
       if (!token) throw { message: 'Unauthorized' };
 
+      // Determine if updateData is FormData or regular object
+      const isFormData = updateData instanceof FormData;
+      
+      const headers = {
+        Authorization: `Bearer ${token}`,
+      };
+      
+      // Only add Content-Type for JSON, let browser set it for FormData
+      if (!isFormData) {
+        headers['Content-Type'] = 'application/json';
+      }
+
       const response = await fetch(`${baseURL}/category/${id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(updateData),
+        headers,
+        body: isFormData ? updateData : JSON.stringify(updateData),
       });
+
       return await handleResponse(response);
     } catch (error) {
       return rejectWithValue(error);

@@ -27,7 +27,7 @@ const Sidebar = ({ isOpen, onClose }) => {
       name: 'Products',
       icon: Package,
       path: '/products',
-      badge: '24'
+      badge: null
     },
     {
       name: 'Categories',
@@ -45,7 +45,7 @@ const Sidebar = ({ isOpen, onClose }) => {
       name: 'Orders',
       icon: ShoppingCart,
       path: '/orders',
-      badge: '3'
+      badge: null
     },
     {
       name: 'Discounts',

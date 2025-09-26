@@ -90,20 +90,15 @@ export default function Subcategories() {
     }
   }, [error, dispatch])
 
-  const filtered = subCategories.filter(sub => {
-    const matchesSearch =
-      sub.name.toLowerCase().includes(search.toLowerCase()) ||
-      sub.description.toLowerCase().includes(search.toLowerCase())
-    const matchesCategory =
-      categoryFilter === 'All' ||
-      sub.categoryId?._id === categoryFilter
-    const matchesStatus =
-      statusFilter === 'All' ||
-      (statusFilter === 'Active' && sub.isActive) ||
-      (statusFilter === 'Inactive' && !sub.isActive)
-    return matchesSearch && matchesCategory && matchesStatus
+  const filtered = subCategories.filter(s => {
+    const ms = s.name.toLowerCase().includes(search.toLowerCase()) ||
+               s.description.toLowerCase().includes(search.toLowerCase())
+    const mc = categoryFilter === 'All' || s.category === categoryFilter
+    const mt = statusFilter === 'All' ||
+               (statusFilter==='Active' && s.isActive) ||
+               (statusFilter==='Inactive' && !s.isActive)
+    return ms && mc && mt
   })
-
   const resetForm = () => {
     setFormData({
       name: '',
@@ -175,11 +170,17 @@ export default function Subcategories() {
     total: filtered.length,
     active: filtered.filter(s => s.isActive).length,
     inactive: filtered.filter(s => !s.isActive).length,
-    categories: [...new Set(filtered.map(s => s.categoryId?._id))].length
+    categories: new Set(filtered.map(s=>s.categoryId?._id)).size
   }
 
-  const SubcategoryCard = ({ subcategory }) => {
-    const categoryName = subcategory.categoryId?.name || 'Unknown' 
+  const SubcategoryCard = ({ s }) => {
+    // Use this:
+    const getCategoryName = (categoryId) => {
+      const category = categories.find(cat => cat._id === categoryId)
+      return category?.name || 'Unknown'
+    } 
+    // Then in your component:
+    const categoryName = categories.find(cat => cat._id === s.category)?.name || 'Unknown'
     return (
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-white/50 group">
         <div className="space-y-4">
@@ -190,28 +191,28 @@ export default function Subcategories() {
                 <Tag size={20} className="text-white" />
               </div>
               <div className="space-y-1">
-                <h3 className="text-lg font-bold text-gray-900">{subcategory.name}</h3>
+                <h3 className="text-lg font-bold text-gray-900">{s.name}</h3>
                 <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                  subcategory.isActive 
+                  s.isActive 
                     ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' 
                     : 'bg-red-100 text-red-700 border border-red-200'
                 }`}>
                   <div className={`w-2 h-2 rounded-full mr-2 ${
-                    subcategory.isActive ? 'bg-emerald-500' : 'bg-red-500'
+                    s.isActive ? 'bg-emerald-500' : 'bg-red-500'
                   }`}></div>
-                  {subcategory.isActive ? 'Active' : 'Inactive'}
+                  {s.isActive ? 'Active' : 'Inactive'}
                 </span>
               </div>
             </div>
             <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
               <button
-                onClick={() => handleEdit(subcategory)}
+                onClick={() => handleEdit(s)}
                 className="p-2 text-gray-400 hover:text-white hover:bg-gradient-to-r hover:from-blue-500 hover:to-indigo-500 rounded-lg transition-all duration-300 hover:scale-110 hover:shadow-lg"
               >
                 <Edit size={16} />
               </button>
               <button
-                onClick={() => handleDelete(subcategory)}
+                onClick={() => handleDelete(s)}
                 className="p-2 text-gray-400 hover:text-white hover:bg-gradient-to-r hover:from-red-500 hover:to-pink-500 rounded-lg transition-all duration-300 hover:scale-110 hover:shadow-lg"
               >
                 <Trash2 size={16} />
@@ -220,7 +221,7 @@ export default function Subcategories() {
           </div>
 
           {/* Description */}
-          <p className="text-gray-600 leading-relaxed">{subcategory.description}</p>
+          <p className="text-gray-600 leading-relaxed">{s.description}</p>
 
           {/* Category */}
           <div className="space-y-2">
@@ -241,7 +242,7 @@ export default function Subcategories() {
                 Created
               </span>
               <span className="text-gray-900 font-medium">
-                {subcategory.createdAt ? new Date(subcategory.createdAt).toLocaleDateString() : 'N/A'}
+                {s.createdAt ? new Date(s.createdAt).toLocaleDateString() : 'N/A'}
               </span>
             </div>
             <div className="flex items-center justify-between text-sm">
@@ -249,7 +250,7 @@ export default function Subcategories() {
                 <Hash size={12} className="mr-1" />
                 ID
               </span>
-              <span className="text-gray-900 font-mono text-xs">{subcategory._id?.slice(-8) || 'N/A'}</span>
+              <span className="text-gray-900 font-mono text-xs">{s._id?.slice(-8) || 'N/A'}</span>
             </div>
           </div>
         </div>
@@ -449,7 +450,7 @@ export default function Subcategories() {
                         </td>
                         <td className="py-4 px-6">
                           <span className="px-3 py-1 bg-pink-100 text-pink-700 rounded-full text-xs font-semibold">
-                            {subcategory.categoryId?.name || 'Unknown'}
+                            {categories.find(cat => cat._id === subcategory.category)?.name || 'Unknown'}
                           </span>
                         </td>
                         <td className="py-4 px-6">
