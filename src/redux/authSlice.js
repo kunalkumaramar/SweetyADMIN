@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 
-const baseURL = 'https://sweety-server.onrender.com';
+const baseURL = import.meta.env.VITE_API_BASE_URL;
 
 // Helper function to handle fetch responses
 const handleResponse = async (response) => {
