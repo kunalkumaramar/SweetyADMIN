@@ -72,92 +72,94 @@ const Dashboard = () => {
     return statusColors[status?.toLowerCase()] || statusColors.pending
   }
 
-  // NOW: Calculate comprehensive stats (after helper functions are defined)
   const calculateStats = () => {
-    // Product stats
-    const totalProducts = products.length
-    const lowStockProducts = products.filter(product => {
-      const totalStock = product.colors?.reduce((total, color) => {
-        return total + (color.sizeStock?.reduce((sum, size) => sum + size.stock, 0) || 0)
-      }, 0) || 0
-      return totalStock <= 5
-    }).length
+  // Product stats
+  const totalProducts = products.length
+  const lowStockProducts = products.filter(product => {
+    const totalStock = product.colors?.reduce((total, color) => {
+      return total + (color.sizeStock?.reduce((sum, size) => sum + size.stock, 0) || 0)
+    }, 0) || 0
+    return totalStock <= 5
+  }).length
 
-    // Order stats
-    const todayOrders = orders.filter(order => {
-      const today = new Date().toDateString()
-      return new Date(order.createdAt).toDateString() === today
-    })
+  // Order stats
+  const todayOrders = orders.filter(order => {
+    const today = new Date().toDateString()
+    return new Date(order.createdAt).toDateString() === today
+  })
 
-    const todayRevenue = todayOrders.reduce((sum, order) => sum + (order.total || 0), 0)
-    const totalRevenue = orders.reduce((sum, order) => sum + (order.total || 0), 0)
+  const todayRevenue = todayOrders.reduce((sum, order) => sum + (order.total || 0), 0)
+  const totalRevenue = orders.reduce((sum, order) => sum + (order.total || 0), 0)
 
-    // Order status breakdown
-    const ordersByStatus = orders.reduce((acc, order) => {
-      const status = order.status?.toLowerCase() || 'pending'
-      acc[status] = (acc[status] || 0) + 1
-      return acc
-    }, {})
+  // Order status breakdown
+  const ordersByStatus = orders.reduce((acc, order) => {
+    const status = order.status?.toLowerCase() || 'pending'
+    acc[status] = (acc[status] || 0) + 1
+    return acc
+  }, {})
 
-    // Customer stats (unique customers from orders)
-    const uniqueCustomers = new Set(orders.map(order => order.shippingAddress?.name || order.customerId)).size
+  // Customer stats (unique customers from orders)
+  const uniqueCustomers = new Set(orders.map(order => order.shippingAddress?.name || order.customerId)).size
 
-    // Discount stats
-    const activeDiscounts = discounts.filter(d => d.isActive).length
-    const expiredDiscounts = discounts.filter(d => 
-      d.validUntil && new Date(d.validUntil) < new Date()
-    ).length
+  // Discount stats
+  const activeDiscounts = discounts.filter(d => d.isActive).length
+  const expiredDiscounts = discounts.filter(d => 
+    d.validUntil && new Date(d.validUntil) < new Date()
+  ).length
 
-    // Recent activity - NOW getTimeAgo is available
-    const recentOrders = orders
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      .slice(0, 4)
-      .map(order => ({
-        id: order._id,
-        orderNumber: order.orderNumber || `#ORD${order._id?.slice(-4)}`,
-        customer: order.shippingAddress?.name || 'Unknown Customer',
-        product: order.items?.[0]?.productName || 'Multiple Items',
-        amount: `₹${order.total?.toLocaleString('en-IN') || 0}`,
-        status: order.status || 'pending',
-        time: getTimeAgo(order.createdAt), // Now this works!
-        avatar: getInitials(order.shippingAddress?.name || 'U')
-      }))
+  // Recent activity - FIXED: Create copy before sorting
+  const recentOrders = [...orders]  // Create copy first
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .slice(0, 4)
+    .map(order => ({
+      id: order._id,
+      orderNumber: order.orderNumber || `#ORD${order._id?.slice(-4)}`,
+      customer: order.shippingAddress?.name || 'Unknown Customer',
+      product: order.items?.[0]?.productName || 'Multiple Items',
+      amount: `₹${order.total?.toLocaleString('en-IN') || 0}`,
+      status: order.status || 'pending',
+      time: getTimeAgo(order.createdAt),
+      avatar: getInitials(order.shippingAddress?.name || 'U')
+    }))
 
-    // Top selling products
-    const productSales = products.map(product => {
-      const sales = orders.reduce((total, order) => {
-        const productInOrder = order.items?.find(item => item.productId === product._id)
-        return total + (productInOrder?.quantity || 0)
-      }, 0)
+  // Top selling products - FIXED: Create copy before sorting
+  const productSales = products.map(product => {
+    const sales = orders.reduce((total, order) => {
+      const productInOrder = order.items?.find(item => item.productId === product._id)
+      return total + (productInOrder?.quantity || 0)
+    }, 0)
 
-      const revenue = orders.reduce((total, order) => {
-        const productInOrder = order.items?.find(item => item.productId === product._id)
-        return total + ((productInOrder?.quantity || 0) * (productInOrder?.price || 0))
-      }, 0)
-
-      return {
-        ...product,
-        unitsSold: sales,
-        revenue: revenue
-      }
-    }).filter(p => p.unitsSold > 0)
-      .sort((a, b) => b.unitsSold - a.unitsSold)
-      .slice(0, 4)
+    const revenue = orders.reduce((total, order) => {
+      const productInOrder = order.items?.find(item => item.productId === product._id)
+      return total + ((productInOrder?.quantity || 0) * (productInOrder?.price || 0))
+    }, 0)
 
     return {
-      todayOrders: todayOrders.length,
-      todayRevenue,
-      totalRevenue,
-      totalProducts,
-      lowStockProducts,
-      uniqueCustomers,
-      activeDiscounts,
-      expiredDiscounts,
-      ordersByStatus,
-      recentOrders,
-      topProducts: productSales
+      ...product,
+      unitsSold: sales,
+      revenue: revenue
     }
+  }).filter(p => p.unitsSold > 0)
+
+  // Create copy before sorting
+  const topProducts = [...productSales]
+    .sort((a, b) => b.unitsSold - a.unitsSold)
+    .slice(0, 4)
+
+  return {
+    todayOrders: todayOrders.length,
+    todayRevenue,
+    totalRevenue,
+    totalProducts,
+    lowStockProducts,
+    uniqueCustomers,
+    activeDiscounts,
+    expiredDiscounts,
+    ordersByStatus,
+    recentOrders,
+    topProducts
   }
+}
 
   const stats = calculateStats()
 
