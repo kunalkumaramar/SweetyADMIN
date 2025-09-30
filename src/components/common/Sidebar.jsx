@@ -42,6 +42,12 @@ const Sidebar = ({ isOpen, onClose }) => {
       badge: null
     },
     {
+      name: 'Blogs',
+      icon: Tag,
+      path: '/blogs',
+      badge: null
+    },
+    {
       name: 'Orders',
       icon: ShoppingCart,
       path: '/orders',

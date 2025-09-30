@@ -5,6 +5,7 @@ import categoryReducer from "./categorySlice";
 import subCategoryReducer from "./subcategorySlice";
 import discountReducer from "./discountSlice";
 import orderReducer from "./orderSlice";
+import blogsReducer from "./blogsSlice";
 const store= configureStore({
     reducer: {
         auth: authReducer,
@@ -12,7 +13,8 @@ const store= configureStore({
         category: categoryReducer,
         subCategory: subCategoryReducer,
         discount: discountReducer,
-        order: orderReducer
+        order: orderReducer,
+        blogs: blogsReducer
     },
 });
 

@@ -25,6 +25,8 @@ import {
   clearSuccess,
   clearError
 } from '../redux/categorySlice'
+// Import the uploadColorImage action from productSlice
+import { uploadColorImage } from '../redux/productSlice'
 
 const Categories = () => {
   const dispatch = useDispatch()
@@ -37,6 +39,11 @@ const Categories = () => {
     updatedCategory,
     deletedCategoryId
   } = useSelector(state => state.category || {})
+
+  // Add product state for image upload
+  const { 
+    loading: imageUploading 
+  } = useSelector(state => state.product || {})
 
   const [showForm, setShowForm] = useState(false)
   const [editingCategory, setEditingCategory] = useState(null)
@@ -102,27 +109,87 @@ const Categories = () => {
   }
 
   try {
-    // Always use FormData for consistency
-    const submitData = new FormData()
-    submitData.append('name', formData.name.trim())
-    submitData.append('description', formData.description.trim())
-    submitData.append('isActive', formData.isActive)
-    
-    // Only append image if one is selected
+    let imageUrl = null
+
+    // Upload image using Redux action if there's a new file
     if (formData.image) {
-      submitData.append('image', formData.image)
+      toast.loading('Uploading image...', { id: 'image-upload' })
+      
+      // Create FormData for image upload
+      const uploadFormData = new FormData()
+      uploadFormData.append('image', formData.image)
+      
+      // Dispatch uploadColorImage action and wait for result
+      const uploadResult = await dispatch(uploadColorImage(uploadFormData)).unwrap()
+      
+      console.log('Upload result:', uploadResult)
+      
+      // Extract image URL from the response structure: {data: Array(1), statusCode: 200, success: true}
+      if (uploadResult && uploadResult.data && Array.isArray(uploadResult.data) && uploadResult.data.length > 0) {
+        const firstImage = uploadResult.data[0]
+        // Try different possible properties for the URL
+        imageUrl = firstImage.url || firstImage.secure_url || firstImage.imageUrl || firstImage.src || firstImage
+        console.log('Extracted imageUrl:', imageUrl)
+      } else if (typeof uploadResult === 'string') {
+        imageUrl = uploadResult
+      } else if (uploadResult && typeof uploadResult === 'object') {
+        // Fallback for other response structures
+        imageUrl = uploadResult.url || uploadResult.imageUrl || uploadResult.secure_url
+      }
+      
+      // Validate that imageUrl is a valid HTTP/HTTPS URL
+      if (!imageUrl || typeof imageUrl !== 'string' || (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://'))) {
+        console.error('Invalid or missing image URL:', imageUrl)
+        console.error('Full upload result:', uploadResult)
+        toast.error('Failed to get valid image URL from upload response')
+        return
+      }
+      
+      toast.success('Image uploaded successfully!', { id: 'image-upload' })
+    } else if (editingCategory?.image) {
+      // Keep existing image URL if editing and no new file selected
+      imageUrl = editingCategory.image
     }
 
-    if (editingCategory) {
-      dispatch(updateCategory({ 
-        id: editingCategory._id, 
-        updateData: submitData 
-      }))
-    } else {
-      dispatch(createCategory(submitData))
+    // Prepare JSON data for category creation/update
+    const submitData = {
+      name: formData.name.trim(),
+      description: formData.description.trim(),
+      isActive: formData.isActive
     }
+    
+    // Add image URL if available
+    if (imageUrl) {
+      submitData.image = imageUrl
+    }
+
+    console.log('Submitting category data:', submitData)
+
+    if (editingCategory) {
+      // Update existing category
+      await dispatch(updateCategory({ 
+        id: editingCategory._id, 
+        updateData: submitData
+      })).unwrap()
+    } else {
+      // Create new category - require image
+      if (!imageUrl) {
+        toast.error('Please upload a banner image')
+        return
+      }
+      await dispatch(createCategory(submitData)).unwrap()
+    }
+
   } catch (error) {
-    toast.error('Error processing request: ' + error.message)
+    console.error('Submit error:', error)
+    // More specific error handling
+    if (error.message?.includes('Network Error') || error.message?.includes('fetch')) {
+      toast.error('Network error. Please check your connection and try again.')
+    } else if (error.message?.includes('500')) {
+      toast.error('Server error. Please try again or contact support.')
+    } else {
+      toast.error(error.message || 'Failed to save category')
+    }
   }
 }
 
@@ -495,19 +562,19 @@ const Categories = () => {
                   type="button"
                   onClick={resetForm}
                   className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors font-medium"
-                  disabled={loading}
+                  disabled={loading || imageUploading}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSubmit}
-                  disabled={loading}
+                  disabled={loading || imageUploading}
                   className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 flex items-center gap-2 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {loading ? (
+                  {loading || imageUploading ? (
                     <>
                       <Loader2 size={18} className="animate-spin" />
-                      {editingCategory ? 'Updating...' : 'Creating...'}
+                      {imageUploading ? 'Uploading image...' : (editingCategory ? 'Updating...' : 'Creating...')}
                     </>
                   ) : (
                     <>

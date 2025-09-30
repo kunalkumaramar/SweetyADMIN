@@ -16,6 +16,7 @@ import Profile from './pages/Profile'
 // Import Layout Components
 import Navbar from './components/common/Navbar'
 import Sidebar from './components/common/Sidebar'
+import Blogs from './pages/Blogs'
 
 // Mock Authentication
 const useAuth = () => {
@@ -122,7 +123,15 @@ function App() {
               </Layout>
             </ProtectedRoute>
           } />
-          
+
+          <Route path="/blogs" element={
+            <ProtectedRoute>
+              <Layout>
+                <Blogs />
+              </Layout>
+            </ProtectedRoute>
+          } />
+
           <Route path="/orders" element={
             <ProtectedRoute>
               <Layout>

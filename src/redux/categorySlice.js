@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 
-const baseURL = import.meta.env.VITE_API_BASE_URL;;
+const baseURL = import.meta.env.VITE_API_BASE_URL;
 
 // Helper to handle fetch responses
 const handleResponse = async (response) => {

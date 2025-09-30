@@ -17,7 +17,8 @@ import {
   Grid3X3,
   List,
   Calendar,
-  Hash
+  Hash,
+  Upload
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import {
@@ -30,6 +31,8 @@ import {
   clearError
 } from '../redux/subcategorySlice'
 import { getCategories } from '../redux/categorySlice'
+// Import the uploadColorImage action from productSlice
+import { uploadColorImage } from '../redux/productSlice'
 
 export default function Subcategories() {
   const dispatch = useDispatch()
@@ -43,6 +46,11 @@ export default function Subcategories() {
     deletedSubCategoryId
   } = useSelector(state => state.subCategory || {})
   const { categories = [] } = useSelector(state => state.category || {})
+  
+  // Add product state for image upload
+  const { 
+    loading: imageUploading 
+  } = useSelector(state => state.product || {})
 
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('All')
@@ -54,6 +62,7 @@ export default function Subcategories() {
     name: '',
     description: '',
     categoryId: '',
+    image: null,  // Add image field
     isActive: true
   })
 
@@ -99,11 +108,13 @@ export default function Subcategories() {
                (statusFilter==='Inactive' && !s.isActive)
     return ms && mc && mt
   })
+  
   const resetForm = () => {
     setFormData({
       name: '',
       description: '',
       categoryId: '',
+      image: null,  // Reset image field
       isActive: true
     })
     setShowAddModal(false)
@@ -111,32 +122,106 @@ export default function Subcategories() {
   }
 
   const handleInputChange = e => {
-    const { name, value, type, checked } = e.target
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }))
+    const { name, value, type, checked, files } = e.target
+    if (name === 'image') {
+      setFormData(prev => ({ ...prev, image: files[0] }))
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: type === 'checkbox' ? checked : value
+      }))
+    }
   }
 
-  const handleSubmit = e => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     if (!formData.name || !formData.categoryId || !formData.description) {
       toast.error('Please fill in all required fields')
       return
     }
-    const submitData = {
-      name: formData.name,
-      description: formData.description,
-      category: formData.categoryId,
-      isActive: formData.isActive
-    }
-    if (editingSubcategory) {
-      dispatch(updateSubCategory({
-        id: editingSubcategory._id,
-        updateData: submitData
-      }))
-    } else {
-      dispatch(createSubCategory(submitData))
+
+    try {
+      let imageUrl = null
+
+      // Upload image using Redux action if there's a new file
+      if (formData.image) {
+        toast.loading('Uploading image...', { id: 'image-upload' })
+        
+        // Create FormData for image upload
+        const uploadFormData = new FormData()
+        uploadFormData.append('image', formData.image)
+        
+        // Dispatch uploadColorImage action and wait for result
+        const uploadResult = await dispatch(uploadColorImage(uploadFormData)).unwrap()
+        
+        console.log('Upload result:', uploadResult)
+        
+        // Extract image URL from the response structure: {data: Array(1), statusCode: 200, success: true}
+        if (uploadResult && uploadResult.data && Array.isArray(uploadResult.data) && uploadResult.data.length > 0) {
+          const firstImage = uploadResult.data[0]
+          // Try different possible properties for the URL
+          imageUrl = firstImage.url || firstImage.secure_url || firstImage.imageUrl || firstImage.src || firstImage
+          console.log('Extracted imageUrl:', imageUrl)
+        } else if (typeof uploadResult === 'string') {
+          imageUrl = uploadResult
+        } else if (uploadResult && typeof uploadResult === 'object') {
+          // Fallback for other response structures
+          imageUrl = uploadResult.url || uploadResult.imageUrl || uploadResult.secure_url
+        }
+        
+        // Validate that imageUrl is a valid HTTP/HTTPS URL
+        if (!imageUrl || typeof imageUrl !== 'string' || (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://'))) {
+          console.error('Invalid or missing image URL:', imageUrl)
+          console.error('Full upload result:', uploadResult)
+          toast.error('Failed to get valid image URL from upload response')
+          return
+        }
+        
+        toast.success('Image uploaded successfully!', { id: 'image-upload' })
+      } else if (editingSubcategory?.image) {
+        // Keep existing image URL if editing and no new file selected
+        imageUrl = editingSubcategory.image
+      }
+
+      // Prepare JSON data for subcategory creation/update
+      const submitData = {
+        name: formData.name,
+        description: formData.description,
+        category: formData.categoryId,
+        isActive: formData.isActive
+      }
+      
+      // Add image URL if available
+      if (imageUrl) {
+        submitData.image = imageUrl
+      }
+
+      console.log('Submitting subcategory data:', submitData)
+
+      if (editingSubcategory) {
+        await dispatch(updateSubCategory({
+          id: editingSubcategory._id,
+          updateData: submitData
+        })).unwrap()
+      } else {
+        // Create new subcategory - require image
+        if (!imageUrl) {
+          toast.error('Please upload a subcategory image')
+          return
+        }
+        await dispatch(createSubCategory(submitData)).unwrap()
+      }
+
+    } catch (error) {
+      console.error('Submit error:', error)
+      // More specific error handling
+      if (error.message?.includes('Network Error') || error.message?.includes('fetch')) {
+        toast.error('Network error. Please check your connection and try again.')
+      } else if (error.message?.includes('500')) {
+        toast.error('Server error. Please try again or contact support.')
+      } else {
+        toast.error(error.message || 'Failed to save subcategory')
+      }
     }
   }
 
@@ -146,6 +231,7 @@ export default function Subcategories() {
       name: sub.name,
       description: sub.description,
       categoryId: sub.categoryId?._id || '',
+      image: null, // Don't prefill file input
       isActive: sub.isActive !== false
     })
     setShowAddModal(true)
@@ -173,13 +259,7 @@ export default function Subcategories() {
     categories: new Set(filtered.map(s=>s.categoryId?._id)).size
   }
 
-  const SubcategoryCard = ({ s }) => {
-    // Use this:
-    const getCategoryName = (categoryId) => {
-      const category = categories.find(cat => cat._id === categoryId)
-      return category?.name || 'Unknown'
-    } 
-    // Then in your component:
+  const SubcategoryCard = ({ subcategory: s }) => {
     const categoryName = categories.find(cat => cat._id === s.category)?.name || 'Unknown'
     return (
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-white/50 group">
@@ -187,8 +267,12 @@ export default function Subcategories() {
           {/* Header */}
           <div className="flex items-start justify-between">
             <div className="flex items-start space-x-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-xl flex items-center justify-center shadow-lg">
-                <Tag size={20} className="text-white" />
+              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-xl flex items-center justify-center shadow-lg overflow-hidden">
+                {s.image ? (
+                  <img src={s.image} alt={s.name} className="w-full h-full object-cover" />
+                ) : (
+                  <Tag size={20} className="text-white" />
+                )}
               </div>
               <div className="space-y-1">
                 <h3 className="text-lg font-bold text-gray-900">{s.name}</h3>
@@ -439,8 +523,12 @@ export default function Subcategories() {
                       >
                         <td className="py-4 px-6">
                           <div className="flex items-center space-x-3">
-                            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-lg flex items-center justify-center flex-shrink-0">
-                              <Tag size={16} className="text-white" />
+                            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
+                              {subcategory.image ? (
+                                <img src={subcategory.image} alt={subcategory.name} className="w-full h-full object-cover" />
+                              ) : (
+                                <Tag size={16} className="text-white" />
+                              )}
                             </div>
                             <div>
                               <p className="font-bold text-gray-900">{subcategory.name}</p>
@@ -509,8 +597,8 @@ export default function Subcategories() {
       {/* Add/Edit Subcategory Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-2xl">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-purple-50 to-indigo-50">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] shadow-2xl flex flex-col">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-purple-50 to-indigo-50 flex-shrink-0">
               <h2 className="text-2xl font-bold text-gray-800">
                 {editingSubcategory ? 'Edit Subcategory' : 'Add New Subcategory'}
               </h2>
@@ -522,96 +610,138 @@ export default function Subcategories() {
               </button>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
-              {/* Name */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Name *</label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full px-4 py-3 bg-white/80 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-400/20 focus:border-purple-400"
-                  placeholder="Subcategory name"
-                />
-              </div>
+            <div className="flex-1 overflow-y-auto">
+              <form onSubmit={handleSubmit} className="p-6 space-y-6">
+                {/* Name */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Name *</label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full px-4 py-3 bg-white/80 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-400/20 focus:border-purple-400"
+                    placeholder="Subcategory name"
+                  />
+                </div>
 
-              {/* Category */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Parent Category *</label>
-                <select
-                  name="categoryId"
-                  value={formData.categoryId}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full px-4 py-3 bg-white/80 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-400/20 focus:border-purple-400"
-                >
-                  <option value="">Select parent category</option>
-                  {categories.map(cat => (
-                    <option key={cat._id} value={cat._id}>{cat.name}</option>
-                  ))}
-                </select>
-              </div>
+                {/* Category */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Parent Category *</label>
+                  <select
+                    name="categoryId"
+                    value={formData.categoryId}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full px-4 py-3 bg-white/80 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-400/20 focus:border-purple-400"
+                  >
+                    <option value="">Select parent category</option>
+                    {categories.map(cat => (
+                      <option key={cat._id} value={cat._id}>{cat.name}</option>
+                    ))}
+                  </select>
+                </div>
 
-              {/* Description */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Description *</label>
-                <textarea
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  required
-                  rows={4}
-                  className="w-full px-4 py-3 bg-white/80 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-400/20 focus:border-purple-400 resize-none"
-                  placeholder="Brief description of the subcategory"
-                />
-              </div>
+                {/* Description */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Description *</label>
+                  <textarea
+                    name="description"
+                    value={formData.description}
+                    onChange={handleInputChange}
+                    required
+                    rows={4}
+                    className="w-full px-4 py-3 bg-white/80 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-400/20 focus:border-purple-400 resize-none"
+                    placeholder="Brief description of the subcategory"
+                  />
+                </div>
 
-              {/* Status */}
-              <div className="flex items-center space-x-3">
-                <input
-                  type="checkbox"
-                  name="isActive"
-                  id="isActive"
-                  checked={formData.isActive}
-                  onChange={handleInputChange}
-                  className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500/20 focus:ring-2"
-                />
-                <label htmlFor="isActive" className="text-sm font-semibold text-gray-700">
-                  Active subcategory
-                </label>
-              </div>
+                {/* Image Upload */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Subcategory Image</label>
+                  <div className="relative">
+                    <input
+                      type="file"
+                      name="image"
+                      accept="image/*"
+                      onChange={handleInputChange}
+                      className="hidden"
+                      id="image-upload"
+                    />
+                    <label
+                      htmlFor="image-upload"
+                      className="flex items-center justify-center w-full px-4 py-8 bg-white/80 border-2 border-dashed border-gray-300 rounded-xl hover:border-purple-400 cursor-pointer transition-colors"
+                    >
+                      <div className="text-center">
+                        <Upload size={32} className="mx-auto text-gray-400 mb-2" />
+                        <p className="text-sm text-gray-600">Click to upload image</p>
+                        <p className="text-xs text-gray-500 mt-1">PNG, JPG up to 5MB</p>
+                      </div>
+                    </label>
+                    {formData.image && (
+                      <p className="mt-2 text-sm text-gray-600">
+                        Selected: {formData.image.name}
+                      </p>
+                    )}
+                    {editingSubcategory && editingSubcategory.image && !formData.image && (
+                      <div className="mt-2">
+                        <p className="text-sm text-gray-600 mb-2">Current image:</p>
+                        <img 
+                          src={editingSubcategory.image} 
+                          alt="Current" 
+                          className="w-20 h-20 object-cover rounded-lg border"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
 
-              {/* Form Actions */}
-              <div className="flex justify-end space-x-3 pt-6 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors font-medium"
-                  disabled={loading}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-6 py-3 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 flex items-center gap-2 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 size={18} className="animate-spin" />
-                      {editingSubcategory ? 'Updating...' : 'Adding...'}
-                    </>
-                  ) : (
-                    <>
-                      <Check size={18} />
-                      {editingSubcategory ? 'Update Subcategory' : 'Add Subcategory'}
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
+                {/* Status */}
+                <div className="flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    name="isActive"
+                    id="isActive"
+                    checked={formData.isActive}
+                    onChange={handleInputChange}
+                    className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500/20 focus:ring-2"
+                  />
+                  <label htmlFor="isActive" className="text-sm font-semibold text-gray-700">
+                    Active subcategory
+                  </label>
+                </div>
+              </form>
+            </div>
+
+            {/* Form Actions */}
+            <div className="flex justify-end space-x-3 p-6 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex-shrink-0">
+              <button
+                type="button"
+                onClick={resetForm}
+                className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors font-medium"
+                disabled={loading || imageUploading}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={loading || imageUploading}
+                className="px-6 py-3 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 flex items-center gap-2 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading || imageUploading ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    {imageUploading ? 'Uploading image...' : (editingSubcategory ? 'Updating...' : 'Adding...')}
+                  </>
+                ) : (
+                  <>
+                    <Check size={18} />
+                    {editingSubcategory ? 'Update Subcategory' : 'Add Subcategory'}
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
