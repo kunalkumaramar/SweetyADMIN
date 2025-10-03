@@ -93,10 +93,13 @@ export default function Products() {
   }, [dispatch])
 
   useEffect(() => {
-    if (categoryFilter !== 'All') {
-      dispatch(getSubCategoriesByCategory(categoryFilter))
-    }
-  }, [categoryFilter, dispatch])
+  // Clear subcategory when category changes in form
+  if (form.category && form.category !== '') {
+    dispatch(getSubCategoriesByCategory(form.category))
+    // Reset subcategory when category changes
+    setForm(f => ({ ...f, subcategory: '' }))
+  }
+}, [form.category, dispatch])
 
   useEffect(() => {
     if (success) {
@@ -117,9 +120,19 @@ export default function Products() {
   }, [error, dispatch])
 
   const handleInput = (e) => {
-    const { name, value } = e.target
+  const { name, value } = e.target
+  
+  // If category is changing, reset subcategory
+  if (name === 'category') {
+    setForm(f => ({ 
+      ...f, 
+      [name]: value,
+      subcategory: '' // Reset subcategory when category changes
+    }))
+  } else {
     setForm(f => ({ ...f, [name]: value }))
   }
+}
 
   const handleColorChange = (colorIndex, field, value) => {
     const newColors = [...form.colors]
@@ -260,7 +273,7 @@ export default function Products() {
         name: form.name,
         code: form.code,
         category: form.category,
-        subcategory: form.subcategory,
+        subcategory: form.subcategory || undefined,
         price: parseFloat(form.price),
         originalPrice: form.originalPrice ? parseFloat(form.originalPrice) : undefined,
         description: form.description,
@@ -593,22 +606,27 @@ export default function Products() {
                         ))}
                       </select>
                     </div>
-                    <div>
-                      <label className="block text-sm font-bold mb-2 text-gray-700">Subcategory *</label>
-                      <select
-                        name="subcategory"
-                        value={form.subcategory}
-                        onChange={handleInput}
-                        className="w-full border-2 border-pink-200 px-4 py-3 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-pink-400 bg-white disabled:bg-gray-100"
-                        required
-                        disabled={!form.category}
-                      >
-                        <option value="">Select subcategory</option>
-                        {subCategories.map(s => (
-                          <option key={s._id} value={s._id}>{s.name}</option>
-                        ))}
-                      </select>
-                    </div>
+                    {/* Subcategory Field - Only show if category is selected and has subcategories */}
+                      {form.category && subCategories.length > 0 && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Subcategory <span className="text-gray-400">(Optional)</span>
+                          </label>
+                          <select
+                            name="subcategory"
+                            value={form.subcategory}
+                            onChange={handleInput}
+                            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          >
+                            <option value="">Select Subcategory (Optional)</option>
+                            {subCategories.map(sub => (
+                              <option key={sub._id} value={sub._id}>
+                                {sub.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                     <div>
                       <label className="block text-sm font-bold mb-2 text-gray-700">Price *</label>
                       <input
