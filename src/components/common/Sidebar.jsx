@@ -48,6 +48,12 @@ const Sidebar = ({ isOpen, onClose }) => {
       badge: null
     },
     {
+      name: 'Banner',
+      icon: Tag,
+      path: '/banner',
+      badge: null
+    },
+    {
       name: 'Orders',
       icon: ShoppingCart,
       path: '/orders',

@@ -6,6 +6,7 @@ import subCategoryReducer from "./subcategorySlice";
 import discountReducer from "./discountSlice";
 import orderReducer from "./orderSlice";
 import blogsReducer from "./blogsSlice";
+import bannerReducer from "./bannerSlice";
 const store= configureStore({
     reducer: {
         auth: authReducer,
@@ -14,7 +15,8 @@ const store= configureStore({
         subCategory: subCategoryReducer,
         discount: discountReducer,
         order: orderReducer,
-        blogs: blogsReducer
+        blogs: blogsReducer,
+        banner: bannerReducer,
     },
 });
 

@@ -185,6 +185,75 @@ export const uploadColorImage = createAsyncThunk(
   }
 );
 
+// Add subcategories to a product
+export const addProductSubcategories = createAsyncThunk(
+  'product/addProductSubcategories',
+  async ({ productId, subcategories }, { rejectWithValue, getState }) => {
+    try {
+      const token = getState().auth.accessToken || localStorage.getItem('token');
+      if (!token) throw { message: 'Unauthorized' };
+      
+      const response = await fetch(`${baseURL}/product/${productId}/subcategories`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ subcategories }),
+      });
+      
+      return await handleResponse(response);
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
+// Delete a subcategory from a product
+export const deleteProductSubcategory = createAsyncThunk(
+  'product/deleteProductSubcategory',
+  async ({ productId, subcategoryId }, { rejectWithValue, getState }) => {
+    try {
+      const token = getState().auth.accessToken || localStorage.getItem('token');
+      if (!token) throw { message: 'Unauthorized' };
+      
+      const response = await fetch(`${baseURL}/product/${productId}/subcategories/${subcategoryId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      return await handleResponse(response);
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
+// Filter products by multiple subcategories
+export const filterProductsBySubcategories = createAsyncThunk(
+  'product/filterProductsBySubcategories',
+  async ({ subcategoryIds, page = 1, limit = 10 }, { rejectWithValue, getState }) => {
+    try {
+      const token = getState().auth.accessToken || localStorage.getItem('token');
+      if (!token) throw { message: 'Unauthorized' };
+      
+      const response = await fetch(`${baseURL}/product/subcategories/filter`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ subcategoryIds, page, limit }),
+      });
+      
+      return await handleResponse(response);
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
+
 const productSlice = createSlice({
   name: 'product',
   initialState: {
@@ -353,6 +422,55 @@ const productSlice = createSlice({
         state.uploadedImages = action.payload.data;
       })
       .addCase(uploadColorImage.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload || action.error.message;
+      })
+      // Add Product Subcategories
+      .addCase(addProductSubcategories.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+        state.success = false;
+      })
+      .addCase(addProductSubcategories.fulfilled, (state, action) => {
+        state.loading = false;
+        state.success = true;
+        state.currentProduct = action.payload.data;
+      })
+      .addCase(addProductSubcategories.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload || action.error.message;
+      })
+
+      // Delete Product Subcategory
+      .addCase(deleteProductSubcategory.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+        state.success = false;
+      })
+      .addCase(deleteProductSubcategory.fulfilled, (state, action) => {
+        state.loading = false;
+        state.success = true;
+        state.currentProduct = action.payload.data;
+      })
+      .addCase(deleteProductSubcategory.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload || action.error.message;
+      })
+      // Filter Products by Subcategories
+      .addCase(filterProductsBySubcategories.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(filterProductsBySubcategories.fulfilled, (state, action) => {
+        state.loading = false;
+        state.products = action.payload.data.products;
+        state.pagination = {
+          total: action.payload.data.total,
+          page: action.payload.data.page,
+          pages: action.payload.data.pages,
+        };
+      })
+      .addCase(filterProductsBySubcategories.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload || action.error.message;
       });

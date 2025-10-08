@@ -17,6 +17,7 @@ import Profile from './pages/Profile'
 import Navbar from './components/common/Navbar'
 import Sidebar from './components/common/Sidebar'
 import Blogs from './pages/Blogs'
+import Banner from './pages/Banner'
 
 // Mock Authentication
 const useAuth = () => {
@@ -128,6 +129,14 @@ function App() {
             <ProtectedRoute>
               <Layout>
                 <Blogs />
+              </Layout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/banner" element={
+            <ProtectedRoute>
+              <Layout>
+                <Banner />
               </Layout>
             </ProtectedRoute>
           } />

@@ -21,7 +21,10 @@ import {
   createProduct,
   updateProduct,
   getProducts,
-  uploadColorImage, // Add this import
+  uploadColorImage,
+  addProductSubcategories,
+  deleteProductSubcategory,
+  filterProductsBySubcategories,
   clearSuccess,
   clearError
 } from '../redux/productSlice'
@@ -54,6 +57,7 @@ export default function Products() {
     code: '',
     category: '',
     subcategory: '',
+    subcategories: [], // Array for multiple subcategories
     price: '',
     originalPrice: '',
     description: '',
@@ -73,6 +77,7 @@ export default function Products() {
       code: '',
       category: '',
       subcategory: '',
+      subcategories: [],
       price: '',
       originalPrice: '',
       description: '',
@@ -122,12 +127,13 @@ export default function Products() {
   const handleInput = (e) => {
   const { name, value } = e.target
   
-  // If category is changing, reset subcategory
+  // If category is changing, reset subcategory and subcategories
   if (name === 'category') {
     setForm(f => ({ 
       ...f, 
       [name]: value,
-      subcategory: '' // Reset subcategory when category changes
+      subcategory: '', // Reset subcategory when category changes
+      subcategories: [] // Reset subcategories array
     }))
   } else {
     setForm(f => ({ ...f, [name]: value }))
@@ -274,6 +280,7 @@ export default function Products() {
         code: form.code,
         category: form.category,
         subcategory: form.subcategory || undefined,
+        subcategories: form.subcategories.length > 0 ? form.subcategories : undefined,
         price: parseFloat(form.price),
         originalPrice: form.originalPrice ? parseFloat(form.originalPrice) : undefined,
         description: form.description,
@@ -308,6 +315,7 @@ export default function Products() {
       code: p.code,
       category: p.category,
       subcategory: p.subcategory,
+      subcategories: p.subcategories || [],
       price: p.price.toString(),
       originalPrice: p.originalPrice ? p.originalPrice.toString() : '',
       description: p.description,
@@ -334,9 +342,20 @@ export default function Products() {
 
   const filtered = products.filter(p => {
     const matchCat = categoryFilter === 'All' || p.category === categoryFilter
-    const matchSub = subcategoryFilter === 'All' || p.subcategory === subcategoryFilter
     const q = search.toLowerCase()
     const matchSearch = p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q)
+    
+    // For subcategory filtering, check both subcategories array and legacy subcategory field
+    const productSubIds = p.subcategories 
+      ? p.subcategories.map(sub => sub._id || sub)
+      : p.subcategory 
+        ? [p.subcategory]
+        : []
+    
+    const matchSub = subcategoryFilter === 'All' || (
+      productSubIds.length > 0 && productSubIds.includes(subcategoryFilter)
+    )
+    
     return matchCat && matchSub && matchSearch
   })
 
@@ -456,7 +475,24 @@ export default function Products() {
                     <div className="space-y-2 text-sm text-gray-600">
                       <p className="flex items-center"><span className="font-medium text-pink-600">Code:</span> <span className="ml-2">{p.code}</span></p>
                       <p className="flex items-center"><span className="font-medium text-pink-600">Category:</span> <span className="ml-2 truncate">{getName(categories, p.category)}</span></p>
-                      <p className="flex items-center"><span className="font-medium text-pink-600">Subcategory:</span> <span className="ml-2 truncate">{getName(subCategories, p.subcategory)}</span></p>
+                      <p className="flex items-center gap-1">
+                        <span className="font-medium text-pink-600">Subcategories:</span>
+                        <div className="flex flex-wrap gap-1 ml-2">
+                          {p.subcategories ? (
+                            p.subcategories.map(sub => (
+                              <span key={sub._id || sub} className="inline-block px-2 py-0.5 bg-pink-50 text-pink-700 rounded-full text-xs border border-pink-100">
+                                {getName(subCategories, sub._id || sub)}
+                              </span>
+                            ))
+                          ) : p.subcategory ? (
+                            <span className="inline-block px-2 py-0.5 bg-pink-50 text-pink-700 rounded-full text-xs border border-pink-100">
+                              {getName(subCategories, p.subcategory)}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 text-sm">None</span>
+                          )}
+                        </div>
+                      </p>
                     </div>
                     <div className="flex justify-between items-center pt-2 border-t border-pink-100">
                       <span className="text-2xl font-bold text-gray-800">₹{p.price}</span>
@@ -496,7 +532,7 @@ export default function Products() {
                     <th className="px-6 py-4 text-left text-sm font-bold uppercase tracking-wider">Name</th>
                     <th className="px-6 py-4 text-left text-sm font-bold uppercase tracking-wider">Code</th>
                     <th className="px-6 py-4 text-left text-sm font-bold uppercase tracking-wider">Category</th>
-                    <th className="px-6 py-4 text-left text-sm font-bold uppercase tracking-wider">Subcategory</th>
+                    <th className="px-6 py-4 text-left text-sm font-bold uppercase tracking-wider">Subcategories</th>
                     <th className="px-6 py-4 text-left text-sm font-bold uppercase tracking-wider">Price</th>
                     <th className="px-6 py-4 text-left text-sm font-bold uppercase tracking-wider">Stock</th>
                     <th className="px-6 py-4 text-left text-sm font-bold uppercase tracking-wider">Actions</th>
@@ -510,7 +546,23 @@ export default function Products() {
                         <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-800">{p.name}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{p.code}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{getName(categories, p.category)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{getName(subCategories, p.subcategory)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex flex-wrap gap-1">
+                            {p.subcategories ? (
+                              p.subcategories.map(sub => (
+                                <span key={sub._id || sub} className="inline-block px-2 py-0.5 bg-pink-50 text-pink-700 rounded-full text-xs border border-pink-100">
+                                  {getName(subCategories, sub._id || sub)}
+                                </span>
+                              ))
+                            ) : p.subcategory ? (
+                              <span className="inline-block px-2 py-0.5 bg-pink-50 text-pink-700 rounded-full text-xs border border-pink-100">
+                                {getName(subCategories, p.subcategory)}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 text-sm">None</span>
+                            )}
+                          </div>
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap font-bold text-lg text-gray-800">₹{p.price}</td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-3 py-1 rounded-full text-sm font-medium ${stock > 10 ? 'bg-green-100 text-green-700' : stock > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
@@ -606,25 +658,62 @@ export default function Products() {
                         ))}
                       </select>
                     </div>
-                    {/* Subcategory Field - Only show if category is selected and has subcategories */}
+                    {/* Subcategories Multi-select */}
                       {form.category && subCategories.length > 0 && (
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Subcategory <span className="text-gray-400">(Optional)</span>
+                        <div className="col-span-2">
+                          <label className="block text-sm font-bold mb-2 text-gray-700">
+                            Subcategories <span className="text-gray-400">(Optional)</span>
                           </label>
-                          <select
-                            name="subcategory"
-                            value={form.subcategory}
-                            onChange={handleInput}
-                            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          >
-                            <option value="">Select Subcategory (Optional)</option>
-                            {subCategories.map(sub => (
-                              <option key={sub._id} value={sub._id}>
-                                {sub.name}
-                              </option>
-                            ))}
-                          </select>
+                          <div className="space-y-3">
+                            <select
+                              multiple
+                              value={form.subcategories}
+                              onChange={(e) => {
+                                const selected = Array.from(e.target.selectedOptions, option => option.value);
+                                setForm(f => ({ ...f, subcategories: selected }));
+                              }}
+                              className="w-full p-3 border-2 border-pink-200 rounded-xl focus:ring-2 focus:ring-pink-300 bg-white min-h-[120px]"
+                            >
+                              {subCategories.map(sub => (
+                                <option key={sub._id} value={sub._id}>
+                                  {sub.name}
+                                </option>
+                              ))}
+                            </select>
+                            
+                            {/* Selected subcategories display */}
+                            {form.subcategories.length > 0 && (
+                              <div className="flex flex-wrap gap-2 p-3 bg-pink-50 rounded-xl border border-pink-100">
+                                <div className="w-full text-sm font-medium text-gray-700 mb-1">Selected Subcategories:</div>
+                                {form.subcategories.map(subId => {
+                                  const sub = subCategories.find(s => s._id === subId);
+                                  return sub ? (
+                                    <div 
+                                      key={sub._id}
+                                      className="flex items-center gap-1 bg-white px-2 py-1 rounded-full border border-pink-200"
+                                    >
+                                      <span className="text-sm text-gray-700">{sub.name}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setForm(f => ({
+                                            ...f,
+                                            subcategories: f.subcategories.filter(id => id !== sub._id)
+                                          }));
+                                        }}
+                                        className="ml-1 text-pink-400 hover:text-pink-600"
+                                      >
+                                        ×
+                                      </button>
+                                    </div>
+                                  ) : null;
+                                })}
+                              </div>
+                            )}
+                          </div>
+                          <p className="mt-2 text-sm text-gray-500">
+                            Hold Ctrl (Windows) or Cmd (Mac) to select multiple subcategories
+                          </p>
                         </div>
                       )}
                     <div>
