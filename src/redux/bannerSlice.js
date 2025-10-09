@@ -66,7 +66,7 @@ export const updateBanner = createAsyncThunk(
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ id, ...bannerData }),
+        body: JSON.stringify({ _id: id, ...bannerData }),
       });
       
       return await handleResponse(response);
