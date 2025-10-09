@@ -25,6 +25,7 @@ import {
   addProductSubcategories,
   deleteProductSubcategory,
   filterProductsBySubcategories,
+  deleteProduct,
   clearSuccess,
   clearError
 } from '../redux/productSlice'
@@ -54,6 +55,7 @@ export default function Products() {
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState({
     name: '',
+    subheading: '', // NEW FIELD - Subheading
     code: '',
     category: '',
     subcategory: '',
@@ -61,6 +63,7 @@ export default function Products() {
     price: '',
     originalPrice: '',
     description: '',
+    specifications: [], // NEW FIELD - Array of {label, description, order}
     sizeChart: '',
     tags: '',
     colors: [{ // Initialize with one empty color
@@ -74,6 +77,7 @@ export default function Products() {
   const initializeForm = () => {
     setForm({
       name: '',
+      subheading: '', // NEW FIELD - Subheading
       code: '',
       category: '',
       subcategory: '',
@@ -81,6 +85,7 @@ export default function Products() {
       price: '',
       originalPrice: '',
       description: '',
+      specifications: [],
       sizeChart: '',
       tags: '',
       colors: [{
@@ -186,6 +191,51 @@ export default function Products() {
       setForm(f => ({ ...f, colors: newColors }))
     }
   }
+  // Specification handlers
+const addSpecification = () => {
+  setForm(f => ({
+    ...f,
+    specifications: [
+      ...f.specifications,
+      { label: '', description: '', order: f.specifications.length + 1 }
+    ]
+  }))
+}
+
+const removeSpecification = (specIndex) => {
+  const newSpecs = form.specifications.filter((_, index) => index !== specIndex)
+  // Reorder remaining specifications
+  const reorderedSpecs = newSpecs.map((spec, index) => ({
+    ...spec,
+    order: index + 1
+  }))
+  setForm(f => ({ ...f, specifications: reorderedSpecs }))
+}
+
+const handleSpecificationChange = (specIndex, field, value) => {
+  const newSpecs = [...form.specifications]
+  newSpecs[specIndex] = {
+    ...newSpecs[specIndex],
+    [field]: value
+  }
+  setForm(f => ({ ...f, specifications: newSpecs }))
+}
+
+const moveSpecification = (specIndex, direction) => {
+  const newSpecs = [...form.specifications]
+  const targetIndex = direction === 'up' ? specIndex - 1 : specIndex + 1
+  
+  if (targetIndex < 0 || targetIndex >= newSpecs.length) return
+  
+  // Swap positions
+  [newSpecs[specIndex], newSpecs[targetIndex]] = [newSpecs[targetIndex], newSpecs[specIndex]]
+  
+  // Update order numbers
+  newSpecs[specIndex].order = specIndex + 1
+  newSpecs[targetIndex].order = targetIndex + 1
+  
+  setForm(f => ({ ...f, specifications: newSpecs }))
+}
 
   // Updated image upload function using your API
   const handleImageUpload = async (colorIndex, files) => {
@@ -277,6 +327,7 @@ export default function Products() {
 
       const payload = {
         name: form.name,
+        subheading: form.subheading || undefined, // NEW FIELD - Subheading
         code: form.code,
         category: form.category,
         subcategory: form.subcategory || undefined,
@@ -284,6 +335,7 @@ export default function Products() {
         price: parseFloat(form.price),
         originalPrice: form.originalPrice ? parseFloat(form.originalPrice) : undefined,
         description: form.description,
+        specifications: form.specifications.length > 0 ? form.specifications : undefined, // NEW
         sizeChart: form.sizeChart || undefined,
         tags: typeof form.tags === 'string' ? 
           form.tags.split(',').map(tag => tag.trim()).filter(tag => tag) : 
@@ -312,6 +364,7 @@ export default function Products() {
     setEditing(p)
     setForm({
       name: p.name,
+      subheading: p.subheading || '', // NEW
       code: p.code,
       category: p.category,
       subcategory: p.subcategory,
@@ -319,6 +372,7 @@ export default function Products() {
       price: p.price.toString(),
       originalPrice: p.originalPrice ? p.originalPrice.toString() : '',
       description: p.description,
+      specifications: p.specifications || [], // NEW
       sizeChart: p.sizeChart || '',
       tags: Array.isArray(p.tags) ? p.tags.join(', ') : '',
       colors: p.colors.map(color => ({
@@ -338,6 +392,19 @@ export default function Products() {
     setShowModal(true)
     setEditing(null)
     initializeForm()
+  }
+
+  // ADD THIS FUNCTION
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this product? This action cannot be undone.')) return
+    
+    try {
+      await dispatch(deleteProduct(id)).unwrap()
+      toast.success('Product deleted successfully!')
+      dispatch(getProducts({ page: 1, limit: 12 }))
+    } catch (error) {
+      toast.error('Failed to delete product: ' + (error.message || 'Unknown error'))
+    }
   }
 
   const filtered = products.filter(p => {
@@ -511,7 +578,7 @@ export default function Products() {
                         Edit
                       </button>
                       <button
-                        onClick={() => toast.success('Delete functionality to be implemented')}
+                        onClick={() => handleDelete(p._id)}
                         className="flex-1 flex items-center justify-center px-4 py-2 bg-gradient-to-r from-red-400 to-pink-400 text-white rounded-xl hover:from-red-500 hover:to-pink-500 transition-all duration-200 shadow-md font-medium"
                       >
                         <Trash2 className="h-4 w-4 mr-2" />
@@ -578,7 +645,7 @@ export default function Products() {
                               <Edit className="h-4 w-4" />
                             </button>
                             <button
-                              onClick={() => toast.success('Delete functionality to be implemented')}
+                              onClick={() => handleDelete(p._id)}
                               className="p-2 bg-gradient-to-r from-red-400 to-pink-400 text-white rounded-lg hover:from-red-500 hover:to-pink-500 transition-all duration-200"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -630,6 +697,17 @@ export default function Products() {
                         placeholder="Enter product name"
                         className="w-full border-2 border-pink-200 px-4 py-3 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-pink-400 bg-white"
                         required
+                      />
+                    </div>
+                    {/* Subheading - NEW FIELD */}
+                    <div>
+                      <label className="block text-sm font-bold mb-2 text-gray-700">Subheading</label>
+                      <input
+                        name="subheading"
+                        value={form.subheading}
+                        onChange={handleInput}
+                        placeholder="A short description or tagline..."
+                        className="w-full border-2 border-pink-200 px-4 py-3 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-pink-400 bg-white"
                       />
                     </div>
                     <div>
@@ -754,6 +832,101 @@ export default function Products() {
                       className="w-full border-2 border-pink-200 px-4 py-3 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-pink-400 bg-white resize-none"
                       required
                     />
+                  </div>
+                  {/* Specifications - NEW SECTION */}
+                  <div className="col-span-2">
+                    <div className="flex justify-between items-center mb-3">
+                      <label className="block text-sm font-bold text-gray-700">Specifications</label>
+                      <button
+                        type="button"
+                        onClick={addSpecification}
+                        className="flex items-center px-4 py-2 bg-gradient-to-r from-green-400 to-emerald-400 text-white rounded-xl hover:from-green-500 hover:to-emerald-500 transition-all duration-200 shadow-md text-sm font-medium"
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Add Specification
+                      </button>
+                    </div>
+                  
+                    {form.specifications.length > 0 ? (
+                      <div className="space-y-4">
+                        {form.specifications.map((spec, specIndex) => (
+                          <div
+                            key={specIndex}
+                            className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-5 relative"
+                          >
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                <span className="bg-blue-500 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold">
+                                  {spec.order}
+                                </span>
+                                <span className="text-sm font-medium text-blue-700">Specification {specIndex + 1}</span>
+                              </div>
+                              <div className="flex gap-2">
+                                {/* Move Up */}
+                                <button
+                                  type="button"
+                                  onClick={() => moveSpecification(specIndex, 'up')}
+                                  disabled={specIndex === 0}
+                                  className="p-2 bg-blue-200 text-blue-700 rounded-lg hover:bg-blue-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                  title="Move up"
+                                >
+                                  ↑
+                                </button>
+                                {/* Move Down */}
+                                <button
+                                  type="button"
+                                  onClick={() => moveSpecification(specIndex, 'down')}
+                                  disabled={specIndex === form.specifications.length - 1}
+                                  className="p-2 bg-blue-200 text-blue-700 rounded-lg hover:bg-blue-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                  title="Move down"
+                                >
+                                  ↓
+                                </button>
+                                {/* Remove */}
+                                <button
+                                  type="button"
+                                  onClick={() => removeSpecification(specIndex)}
+                                  className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
+                                >
+                                  <X className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </div>
+                  
+                            <div className="space-y-3">
+                              {/* Label */}
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Label</label>
+                                <input
+                                  value={spec.label}
+                                  onChange={(e) => handleSpecificationChange(specIndex, 'label', e.target.value)}
+                                  placeholder="e.g., Design & Structure, Fabric, etc."
+                                  className="w-full border-2 border-blue-200 px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-400 bg-white text-sm"
+                                />
+                              </div>
+                  
+                              {/* Description */}
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
+                                <textarea
+                                  value={spec.description}
+                                  onChange={(e) => handleSpecificationChange(specIndex, 'description', e.target.value)}
+                                  placeholder="Detailed description of this specification..."
+                                  rows={3}
+                                  className="w-full border-2 border-blue-200 px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-300 focus:border-blue-400 bg-white resize-none text-sm"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300">
+                        <Package className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+                        <p className="text-gray-500 text-sm">No specifications added yet</p>
+                        <p className="text-gray-400 text-xs mt-1">Click "Add Specification" to add product details</p>
+                      </div>
+                    )}
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
