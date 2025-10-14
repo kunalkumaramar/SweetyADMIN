@@ -98,7 +98,7 @@ export default function Products() {
   }
 
   useEffect(() => {
-    dispatch(getProducts({ page: 1, limit: 12 }))
+    dispatch(getProducts({ page: 1, limit: 100 }))
     dispatch(getCategories())
   }, [dispatch])
 
@@ -118,7 +118,7 @@ export default function Products() {
       setShowModal(false)
       setEditing(null)
       initializeForm()
-      dispatch(getProducts({ page: 1, limit: 12 }))
+      dispatch(getProducts({ page: 1, limit: 50 }))
     }
   }, [success, createdProduct, updatedProduct, dispatch])
 
@@ -401,7 +401,7 @@ const moveSpecification = (specIndex, direction) => {
     try {
       await dispatch(deleteProduct(id)).unwrap()
       toast.success('Product deleted successfully!')
-      dispatch(getProducts({ page: 1, limit: 12 }))
+      dispatch(getProducts({ page: 1, limit: 50 }))
     } catch (error) {
       toast.error('Failed to delete product: ' + (error.message || 'Unknown error'))
     }
