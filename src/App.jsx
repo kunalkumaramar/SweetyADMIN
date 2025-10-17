@@ -145,7 +145,7 @@ function App() {
           <Route path="/mobile-banner" element={
             <ProtectedRoute>
               <Layout>
-                <Banner />
+                <MobileBanner />
               </Layout>
             </ProtectedRoute>
           } />

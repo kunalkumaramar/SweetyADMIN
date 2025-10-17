@@ -96,8 +96,8 @@ export const deleteMobileBanner = createAsyncThunk(
   }
 );
 
-const bannerSlice = createSlice({
-  name: 'banner',
+const mobilebannerSlice = createSlice({
+  name: 'mobilebanner',
   initialState: {
     banners: [],
     loading: false,
@@ -185,5 +185,5 @@ const bannerSlice = createSlice({
   },
 });
 
-export const { clearSuccess, clearError } = bannerSlice.actions;
-export default bannerSlice.reducer;
+export const { clearSuccess, clearError } = mobilebannerSlice.actions;
+export default mobilebannerSlice.reducer;
