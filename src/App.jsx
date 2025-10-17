@@ -18,6 +18,7 @@ import Navbar from './components/common/Navbar'
 import Sidebar from './components/common/Sidebar'
 import Blogs from './pages/Blogs'
 import Banner from './pages/Banner'
+import MobileBanner from './pages/MobileBanner'
 
 // Mock Authentication
 const useAuth = () => {
@@ -134,6 +135,14 @@ function App() {
           } />
 
           <Route path="/banner" element={
+            <ProtectedRoute>
+              <Layout>
+                <Banner />
+              </Layout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/mobile-banner" element={
             <ProtectedRoute>
               <Layout>
                 <Banner />

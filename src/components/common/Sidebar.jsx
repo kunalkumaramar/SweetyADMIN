@@ -54,6 +54,12 @@ const Sidebar = ({ isOpen, onClose }) => {
       badge: null
     },
     {
+      name: 'Mobile-Banner',
+      icon: Tag,
+      path: '/mobile-banner',
+      badge: null
+    },
+    {
       name: 'Orders',
       icon: ShoppingCart,
       path: '/orders',
