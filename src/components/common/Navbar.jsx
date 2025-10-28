@@ -1,30 +1,43 @@
-import React from 'react'
-import { Search, Menu, User, LogOut, Settings } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import { Search, Menu, LogOut, Settings } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { useDispatch, useSelector } from 'react-redux'
-import { logout } from '../../redux/authSlice.js' // update path
+import { logout } from '../../redux/authSlice.js'
 
 const Navbar = ({ toggleSidebar }) => {
   const navigate = useNavigate()
   const dispatch = useDispatch()
 
-  // Get user from Redux state
-  const { user } = useSelector((state) => state.auth)
+  // ✅ Read from both Redux and localStorage (instant load)
+  const { user: reduxUser } = useSelector((state) => state.auth)
+  const storedUser = JSON.parse(localStorage.getItem('user'))
+  const user = reduxUser || storedUser
+
+  const [localEmail, setLocalEmail] = useState('')
+
+  useEffect(() => {
+    // Fallback: try to get user email from localStorage (for display)
+    if (storedUser?.email) setLocalEmail(storedUser.email)
+  }, [storedUser])
 
   const handleLogout = () => {
-    localStorage.removeItem('token') // remove token from localStorage
-    dispatch(logout()) // clear Redux auth state
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+    dispatch(logout())
     toast.success('Logged out successfully')
     navigate('/login')
   }
+
+  const email = user?.email || localEmail || ''
+  const displayName = user?.firstName || (email ? email.split('@')[0] : 'Guest')
+  const userInitial = email ? email.charAt(0).toUpperCase() : '?'
 
   return (
     <header className="bg-white/95 backdrop-blur-md shadow-lg border-b border-gray-100 sticky top-0 z-50 h-16 transition-all duration-300">
       <div className="flex items-center justify-between px-6 h-full max-w-7xl mx-auto">
         {/* Left Section */}
         <div className="flex items-center space-x-4">
-          {/* Mobile menu button */}
           <button
             onClick={toggleSidebar}
             className="lg:hidden p-2.5 rounded-xl hover:bg-gradient-to-r hover:from-pink-50 hover:to-rose-50 hover:shadow-sm transition-all duration-200 transform hover:scale-105"
@@ -32,7 +45,6 @@ const Navbar = ({ toggleSidebar }) => {
             <Menu size={20} className="text-gray-600 hover:text-pink-600 transition-colors" />
           </button>
 
-          {/* Logo for mobile */}
           <div className="flex items-center space-x-3 lg:hidden">
             <div className="w-9 h-9 bg-gradient-to-br from-pink-500 via-rose-500 to-pink-600 rounded-xl shadow-lg flex items-center justify-center transform hover:scale-105 transition-transform duration-200">
               <span className="text-white font-bold text-sm tracking-wide">SI</span>
@@ -55,28 +67,30 @@ const Navbar = ({ toggleSidebar }) => {
 
         {/* Right Section */}
         <div className="flex items-center space-x-3">
-          {/* User Menu */}
           <div className="relative group">
             <button className="flex items-center space-x-3 p-2 pr-4 rounded-xl hover:bg-gradient-to-r hover:from-gray-50 hover:to-pink-50 hover:shadow-sm transition-all duration-200 border border-transparent hover:border-gray-100">
-              <div className="w-9 h-9 bg-gradient-to-br from-pink-500 via-rose-500 to-pink-600 rounded-xl shadow-md flex items-center justify-center transform group-hover:scale-105 transition-transform duration-200">
-                <User size={18} className="text-white" />
+              <div className="w-9 h-9 bg-gradient-to-br from-pink-500 via-rose-500 to-pink-600 rounded-xl shadow-md flex items-center justify-center transform group-hover:scale-105 transition-transform duration-200 overflow-hidden">
+                {user?.profilePic ? (
+                  <img
+                    src={user.profilePic}
+                    alt="Profile"
+                    className="w-full h-full object-cover rounded-xl"
+                  />
+                ) : (
+                  <span className="text-white font-semibold text-sm">{userInitial}</span>
+                )}
               </div>
+
               <div className="hidden md:block">
-                <p className="text-sm font-semibold text-gray-800">{user ? `${user.firstName} ${user.lastName}` : 'Loading...'}</p>
-                <p className="text-xs text-gray-500 font-medium">{user ? user.email : ''}</p>
+                <p className="text-sm font-semibold text-gray-800">
+                  {displayName}
+                </p>
               </div>
             </button>
 
-            {/* Dropdown Menu */}
+            {/* Dropdown */}
             <div className="absolute right-0 top-full mt-3 w-56 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform translate-y-2 group-hover:translate-y-0 z-10">
               <div className="py-3">
-                {/* Profile Header */}
-                <div className="px-4 pb-3 border-b border-gray-100">
-                  <p className="text-sm font-semibold text-gray-800">{user ? `${user.firstName} ${user.lastName}` : 'Loading...'}</p>
-                  <p className="text-xs text-gray-500 mt-1 break-all">{user ? user.email : ''}</p>
-                </div>
-
-                {/* Menu Items */}
                 <div className="pt-2">
                   <button
                     className="flex items-center space-x-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-pink-50 hover:to-rose-50 hover:text-pink-700 transition-all duration-200 group/item"
