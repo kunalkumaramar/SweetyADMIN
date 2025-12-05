@@ -48,13 +48,14 @@ export const adminLogin = createAsyncThunk(
 // Async thunk to get admin profile (requires auth header)
 export const getAdminProfile = createAsyncThunk(
   'auth/getAdminProfile',
-  async (_, { rejectWithValue, getState }) => {
+  async (_, { rejectWithValue, getState, dispatch }) => {
     try {
       // Get accessToken from Redux state or fallback to localStorage
       const token = getState().auth.accessToken || localStorage.getItem('token');
       if (!token) {
         throw { message: 'No authentication token found' };
       }
+      
       const response = await fetch(`${baseURL}/admin/profile`, {
         method: 'GET',
         headers: {
@@ -62,6 +63,15 @@ export const getAdminProfile = createAsyncThunk(
           Authorization: `Bearer ${token}`,
         },
       });
+
+      // Check if token expired (401 Unauthorized)
+      if (response.status === 401) {
+        dispatch(logout());
+        localStorage.removeItem('isAuthenticated');
+        window.location.href = '/login';
+        throw { message: 'Session expired. Please login again.' };
+      }
+
       return await handleResponse(response);
     } catch (error) {
       return rejectWithValue(error);
@@ -86,6 +96,7 @@ const authSlice = createSlice({
       state.error = null;
       state.success = false;
       localStorage.removeItem('token');
+      localStorage.removeItem('isAuthenticated');
     },
   },
   extraReducers: (builder) => {
@@ -137,6 +148,15 @@ const authSlice = createSlice({
       .addCase(getAdminProfile.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload || action.error.message;
+        
+        // Auto logout if session expired
+        if (action.payload?.message?.includes('Session expired') || 
+            action.payload?.message?.includes('jwt expired')) {
+          state.user = null;
+          state.accessToken = null;
+          localStorage.removeItem('token');
+          localStorage.removeItem('isAuthenticated');
+        }
       });
   },
 });
