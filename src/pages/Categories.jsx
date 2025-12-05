@@ -1,65 +1,38 @@
 import React, { useState, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { 
-  Plus, 
-  Edit, 
-  Trash2, 
-  Filter, 
-  Search, 
-  Package, 
-  Tag, 
-  Calendar, 
-  Hash, 
-  BarChart3, 
-  X,
-  Loader2,
-  Upload,
-  Check
-} from 'lucide-react'
+import { Plus, Edit, Trash2, Filter, Search, Package, Tag, Calendar, Hash, BarChart3, X, Loader2, Upload, Check } from 'lucide-react'
 import toast from 'react-hot-toast'
-import {
-  createCategory,
-  updateCategory,
-  deleteCategory,
-  getCategories,
-  clearSuccess,
-  clearError
-} from '../redux/categorySlice'
+import { createCategory, updateCategory, deleteCategory, getCategories, clearSuccess, clearError } from '../redux/categorySlice'
 // Import the uploadColorImage action from productSlice
 import { uploadColorImage } from '../redux/productSlice'
 
+
 const Categories = () => {
   const dispatch = useDispatch()
-  const {
-    categories = [],
-    loading,
-    error,
-    success,
-    createdCategory,
-    updatedCategory,
-    deletedCategoryId
-  } = useSelector(state => state.category || {})
-
+  const { categories = [], loading, error, success, createdCategory, updatedCategory, deletedCategoryId } = useSelector(state => state.category || {})
+  
   // Add product state for image upload
-  const { 
-    loading: imageUploading 
-  } = useSelector(state => state.product || {})
-
+  const { loading: imageUploading } = useSelector(state => state.product || {})
+  
   const [showForm, setShowForm] = useState(false)
   const [editingCategory, setEditingCategory] = useState(null)
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     image: null,
-    isActive: true
+    isActive: true,
+    hsn: '' // Changed from hsnCode to hsn
   })
+  
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('All Status')
+
 
   // Load categories on mount
   useEffect(() => {
     dispatch(getCategories())
   }, [dispatch])
+
 
   // Handle success states
   useEffect(() => {
@@ -80,6 +53,7 @@ const Categories = () => {
     }
   }, [success, createdCategory, updatedCategory, deletedCategoryId, dispatch])
 
+
   // Handle errors
   useEffect(() => {
     if (error) {
@@ -88,8 +62,10 @@ const Categories = () => {
     }
   }, [error, dispatch])
 
+
   const handleInputChange = (e) => {
     const { name, value, type, checked, files } = e.target
+    
     if (name === 'image') {
       setFormData(prev => ({ ...prev, image: files[0] }))
     } else {
@@ -100,109 +76,120 @@ const Categories = () => {
     }
   }
 
+
   const handleSubmit = async (e) => {
-  e && e.preventDefault()
-  
-  if (!formData.name.trim() || !formData.description.trim()) {
-    toast.error('Please fill in all required fields')
-    return
-  }
-
-  try {
-    let imageUrl = null
-
-    // Upload image using Redux action if there's a new file
-    if (formData.image) {
-      toast.loading('Uploading image...', { id: 'image-upload' })
-      
-      // Create FormData for image upload
-      const uploadFormData = new FormData()
-      uploadFormData.append('image', formData.image)
-      
-      // Dispatch uploadColorImage action and wait for result
-      const uploadResult = await dispatch(uploadColorImage(uploadFormData)).unwrap()
-      
-      console.log('Upload result:', uploadResult)
-      
-      // Extract image URL from the response structure: {data: Array(1), statusCode: 200, success: true}
-      if (uploadResult && uploadResult.data && Array.isArray(uploadResult.data) && uploadResult.data.length > 0) {
-        const firstImage = uploadResult.data[0]
-        // Try different possible properties for the URL
-        imageUrl = firstImage.url || firstImage.secure_url || firstImage.imageUrl || firstImage.src || firstImage
-        console.log('Extracted imageUrl:', imageUrl)
-      } else if (typeof uploadResult === 'string') {
-        imageUrl = uploadResult
-      } else if (uploadResult && typeof uploadResult === 'object') {
-        // Fallback for other response structures
-        imageUrl = uploadResult.url || uploadResult.imageUrl || uploadResult.secure_url
-      }
-      
-      // Validate that imageUrl is a valid HTTP/HTTPS URL
-      if (!imageUrl || typeof imageUrl !== 'string' || (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://'))) {
-        console.error('Invalid or missing image URL:', imageUrl)
-        console.error('Full upload result:', uploadResult)
-        toast.error('Failed to get valid image URL from upload response')
-        return
-      }
-      
-      toast.success('Image uploaded successfully!', { id: 'image-upload' })
-    } else if (editingCategory?.image) {
-      // Keep existing image URL if editing and no new file selected
-      imageUrl = editingCategory.image
-    }
-
-    // Prepare JSON data for category creation/update
-    const submitData = {
-      name: formData.name.trim(),
-      description: formData.description.trim(),
-      isActive: formData.isActive
-    }
+    e && e.preventDefault()
     
-    // Add image URL if available
-    if (imageUrl) {
-      submitData.image = imageUrl
+    if (!formData.name.trim() || !formData.description.trim()) {
+      toast.error('Please fill in all required fields')
+      return
     }
 
-    console.log('Submitting category data:', submitData)
 
-    if (editingCategory) {
-      // Update existing category
-      await dispatch(updateCategory({ 
-        id: editingCategory._id, 
-        updateData: submitData
-      })).unwrap()
-    } else {
-      // Create new category - require image
-      if (!imageUrl) {
-        toast.error('Please upload a banner image')
-        return
+    try {
+      let imageUrl = null
+
+
+      // Upload image using Redux action if there's a new file
+      if (formData.image) {
+        toast.loading('Uploading image...', { id: 'image-upload' })
+        
+        // Create FormData for image upload
+        const uploadFormData = new FormData()
+        uploadFormData.append('image', formData.image)
+        
+        // Dispatch uploadColorImage action and wait for result
+        const uploadResult = await dispatch(uploadColorImage(uploadFormData)).unwrap()
+        console.log('Upload result:', uploadResult)
+        
+        // Extract image URL from the response structure: {data: Array(1), statusCode: 200, success: true}
+        if (uploadResult && uploadResult.data && Array.isArray(uploadResult.data) && uploadResult.data.length > 0) {
+          const firstImage = uploadResult.data[0]
+          // Try different possible properties for the URL
+          imageUrl = firstImage.url || firstImage.secure_url || firstImage.imageUrl || firstImage.src || firstImage
+          console.log('Extracted imageUrl:', imageUrl)
+        } else if (typeof uploadResult === 'string') {
+          imageUrl = uploadResult
+        } else if (uploadResult && typeof uploadResult === 'object') {
+          // Fallback for other response structures
+          imageUrl = uploadResult.url || uploadResult.imageUrl || uploadResult.secure_url
+        }
+        
+        // Validate that imageUrl is a valid HTTP/HTTPS URL
+        if (!imageUrl || typeof imageUrl !== 'string' || (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://'))) {
+          console.error('Invalid or missing image URL:', imageUrl)
+          console.error('Full upload result:', uploadResult)
+          toast.error('Failed to get valid image URL from upload response')
+          return
+        }
+        
+        toast.success('Image uploaded successfully!', { id: 'image-upload' })
+      } else if (editingCategory?.image) {
+        // Keep existing image URL if editing and no new file selected
+        imageUrl = editingCategory.image
       }
-      await dispatch(createCategory(submitData)).unwrap()
-    }
 
-  } catch (error) {
-    console.error('Submit error:', error)
-    // More specific error handling
-    if (error.message?.includes('Network Error') || error.message?.includes('fetch')) {
-      toast.error('Network error. Please check your connection and try again.')
-    } else if (error.message?.includes('500')) {
-      toast.error('Server error. Please try again or contact support.')
-    } else {
-      toast.error(error.message || 'Failed to save category')
+
+      // Prepare JSON data for category creation/update
+      const submitData = {
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        isActive: formData.isActive
+      }
+
+
+      // Add image URL if available
+      if (imageUrl) {
+        submitData.image = imageUrl
+      }
+
+
+      // Add HSN if provided (changed from hsnCode to hsn)
+      if (formData.hsn && formData.hsn.trim() !== '') {
+        submitData.hsn = Number(formData.hsn)
+      }
+
+
+      console.log('Submitting category data:', submitData)
+
+
+      if (editingCategory) {
+        // Update existing category
+        await dispatch(updateCategory({ id: editingCategory._id, updateData: submitData })).unwrap()
+      } else {
+        // Create new category - require image
+        if (!imageUrl) {
+          toast.error('Please upload a banner image')
+          return
+        }
+        await dispatch(createCategory(submitData)).unwrap()
+      }
+    } catch (error) {
+      console.error('Submit error:', error)
+      // More specific error handling
+      if (error.message?.includes('Network Error') || error.message?.includes('fetch')) {
+        toast.error('Network error. Please check your connection and try again.')
+      } else if (error.message?.includes('500')) {
+        toast.error('Server error. Please try again or contact support.')
+      } else {
+        toast.error(error.message || 'Failed to save category')
+      }
     }
   }
-}
+
 
   const resetForm = () => {
     setFormData({
       name: '',
       description: '',
       image: null,
-      isActive: true
+      isActive: true,
+      hsn: '' // Changed from hsnCode to hsn
     })
     setShowForm(false)
     setEditingCategory(null)
   }
+
 
   const editCategory = (category) => {
     setEditingCategory(category)
@@ -210,10 +197,12 @@ const Categories = () => {
       name: category.name || '',
       description: category.description || '',
       image: null, // Don't prefill file input
-      isActive: category.isActive !== false
+      isActive: category.isActive !== false,
+      hsn: category.hsn ? String(category.hsn) : '' // Changed from hsnCode to hsn
     })
     setShowForm(true)
   }
+
 
   const handleDelete = (category) => {
     if (window.confirm(`Are you sure you want to delete "${category.name}"?`)) {
@@ -221,15 +210,21 @@ const Categories = () => {
     }
   }
 
+
   // Filter categories based on search and status
   const filteredCategories = categories.filter(category => {
-    const matchesSearch = category.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         category.description?.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = statusFilter === 'All Status' || 
-                         (statusFilter === 'Active' && category.isActive) ||
-                         (statusFilter === 'Inactive' && !category.isActive)
+    const matchesSearch = 
+      category.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      category.description?.toLowerCase().includes(searchTerm.toLowerCase())
+    
+    const matchesStatus = 
+      statusFilter === 'All Status' ||
+      (statusFilter === 'Active' && category.isActive) ||
+      (statusFilter === 'Inactive' && !category.isActive)
+    
     return matchesSearch && matchesStatus
   })
+
 
   // Calculate stats
   const stats = {
@@ -238,6 +233,7 @@ const Categories = () => {
     inactive: filteredCategories.filter(c => !c.isActive).length
   }
 
+
   const categoryIcons = [
     { bg: 'from-pink-500 to-rose-500', icon: Tag },
     { bg: 'from-purple-500 to-indigo-500', icon: Package },
@@ -245,6 +241,7 @@ const Categories = () => {
     { bg: 'from-emerald-500 to-teal-500', icon: Filter },
     { bg: 'from-orange-500 to-amber-500', icon: Hash }
   ]
+
 
   if (loading && categories.length === 0) {
     return (
@@ -256,6 +253,7 @@ const Categories = () => {
       </div>
     )
   }
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 p-6">
@@ -277,6 +275,7 @@ const Categories = () => {
           </button>
         </div>
 
+
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/50">
@@ -290,6 +289,8 @@ const Categories = () => {
               </div>
             </div>
           </div>
+
+
           <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/50">
             <div className="flex items-center justify-between">
               <div>
@@ -301,6 +302,8 @@ const Categories = () => {
               </div>
             </div>
           </div>
+
+
           <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/50">
             <div className="flex items-center justify-between">
               <div>
@@ -313,6 +316,7 @@ const Categories = () => {
             </div>
           </div>
         </div>
+
 
         {/* Filters */}
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/50">
@@ -328,7 +332,7 @@ const Categories = () => {
               />
             </div>
             <select
-              className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent min-w-40"
+              className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent min-w-[160px]"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
@@ -339,6 +343,7 @@ const Categories = () => {
           </div>
         </div>
 
+
         {/* Loading Spinner */}
         {loading && (
           <div className="flex items-center justify-center py-8">
@@ -346,13 +351,15 @@ const Categories = () => {
           </div>
         )}
 
+
         {/* Categories Grid */}
         {!loading && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredCategories.map((category, index) => {
               const IconComponent = categoryIcons[index % categoryIcons.length].icon
               const bgGradient = categoryIcons[index % categoryIcons.length].bg
-              
+
+
               return (
                 <div
                   key={category._id}
@@ -376,9 +383,7 @@ const Categories = () => {
                               ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' 
                               : 'bg-red-100 text-red-700 border border-red-200'
                           }`}>
-                            <div className={`w-2 h-2 rounded-full mr-2 ${
-                              category.isActive ? 'bg-emerald-500' : 'bg-red-500'
-                            }`}></div>
+                            <div className={`w-2 h-2 rounded-full mr-2 ${category.isActive ? 'bg-emerald-500' : 'bg-red-500'}`} />
                             {category.isActive ? 'Active' : 'Inactive'}
                           </span>
                         </div>
@@ -399,10 +404,12 @@ const Categories = () => {
                       </div>
                     </div>
 
+
                     {/* Description */}
                     <p className="text-gray-600 leading-relaxed line-clamp-3">
                       {category.description || 'No description available'}
                     </p>
+
 
                     {/* Metadata */}
                     <div className="border-t border-gray-100 pt-4 space-y-2">
@@ -422,6 +429,16 @@ const Categories = () => {
                         </span>
                         <span className="text-gray-900 font-mono text-xs">{category._id?.slice(-8) || 'N/A'}</span>
                       </div>
+                      {/* HSN Code Display - Changed from category.hsnCode to category.hsn */}
+                      {category.hsn && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-500 flex items-center">
+                            <Hash size={12} className="mr-1" />
+                            HSN Code
+                          </span>
+                          <span className="text-gray-900 font-mono text-xs">{category.hsn}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -429,6 +446,7 @@ const Categories = () => {
             })}
           </div>
         )}
+
 
         {/* Empty State */}
         {!loading && filteredCategories.length === 0 && (
@@ -451,6 +469,7 @@ const Categories = () => {
           </div>
         )}
 
+
         {/* Add/Edit Form Modal */}
         {showForm && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -460,20 +479,23 @@ const Categories = () => {
                 <h2 className="text-2xl font-bold text-gray-800">
                   {editingCategory ? 'Edit Category' : 'Add New Category'}
                 </h2>
-                <button 
+                <button
                   onClick={resetForm}
                   className="p-2 hover:bg-white/80 rounded-lg transition-colors"
                 >
                   <X size={20} />
                 </button>
               </div>
-              
+
+
               {/* Scrollable Content */}
               <div className="flex-1 overflow-y-auto">
                 <form onSubmit={handleSubmit} className="p-6 space-y-6">
                   {/* Name */}
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Category Name *</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Category Name
+                    </label>
                     <input
                       type="text"
                       name="name"
@@ -484,10 +506,13 @@ const Categories = () => {
                       placeholder="Enter category name"
                     />
                   </div>
-        
+
+
                   {/* Description */}
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Description *</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Description
+                    </label>
                     <textarea
                       name="description"
                       value={formData.description}
@@ -498,10 +523,29 @@ const Categories = () => {
                       placeholder="Brief description of the category"
                     />
                   </div>
-        
+
+
+                  {/* HSN Code - Changed name from hsnCode to hsn */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      HSN Code (optional)
+                    </label>
+                    <input
+                      type="number"
+                      name="hsn"
+                      value={formData.hsn}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 bg-white/80 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-400/20 focus:border-purple-400"
+                      placeholder="Enter HSN code"
+                    />
+                  </div>
+
+
                   {/* Image Upload */}
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Category Image</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Category Image
+                    </label>
                     <div className="relative">
                       <input
                         type="file"
@@ -521,24 +565,25 @@ const Categories = () => {
                           <p className="text-xs text-gray-500 mt-1">PNG, JPG up to 5MB</p>
                         </div>
                       </label>
-                      {formData.image && (
-                        <p className="mt-2 text-sm text-gray-600">
-                          Selected: {formData.image.name}
-                        </p>
-                      )}
-                      {editingCategory && editingCategory.image && !formData.image && (
-                        <div className="mt-2">
-                          <p className="text-sm text-gray-600 mb-2">Current image:</p>
-                          <img 
-                            src={editingCategory.image} 
-                            alt="Current" 
-                            className="w-20 h-20 object-cover rounded-lg border"
-                          />
-                        </div>
-                      )}
                     </div>
+                    {formData.image && (
+                      <p className="mt-2 text-sm text-gray-600">
+                        Selected: {formData.image.name}
+                      </p>
+                    )}
+                    {editingCategory && editingCategory.image && !formData.image && (
+                      <div className="mt-2">
+                        <p className="text-sm text-gray-600 mb-2">Current image:</p>
+                        <img 
+                          src={editingCategory.image} 
+                          alt="Current" 
+                          className="w-20 h-20 object-cover rounded-lg border"
+                        />
+                      </div>
+                    )}
                   </div>
-        
+
+
                   {/* Status */}
                   <div className="flex items-center space-x-3">
                     <input
@@ -555,7 +600,8 @@ const Categories = () => {
                   </div>
                 </form>
               </div>
-        
+
+
               {/* Fixed Footer */}
               <div className="p-6 border-t border-gray-100 flex justify-end space-x-3 bg-gray-50 rounded-b-2xl flex-shrink-0">
                 <button
@@ -572,16 +618,11 @@ const Categories = () => {
                   className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 flex items-center gap-2 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading || imageUploading ? (
-                    <>
-                      <Loader2 size={18} className="animate-spin" />
-                      {imageUploading ? 'Uploading image...' : (editingCategory ? 'Updating...' : 'Creating...')}
-                    </>
-                  ) : (
-                    <>
-                      <Check size={18} />
-                      {editingCategory ? 'Update Category' : 'Create Category'}
-                    </>
-                  )}
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : null}
+                  {imageUploading ? 'Uploading image...' : (editingCategory ? 'Updating...' : 'Creating...')}
+                  {!loading && !imageUploading && <Check size={18} />}
+                  {editingCategory ? 'Update Category' : 'Create Category'}
                 </button>
               </div>
             </div>
@@ -591,5 +632,6 @@ const Categories = () => {
     </div>
   )
 }
+
 
 export default Categories
