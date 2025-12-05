@@ -2,16 +2,18 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 
 const baseURL = import.meta.env.VITE_API_BASE_URL;
 
-// Helper function to handle fetch responses
+// Helper for fetch responses
 const handleResponse = async (response) => {
   const data = await response.json();
-  if (!response.ok) {
-    throw data;
-  }
+  if (!response.ok) throw data;
   return data;
 };
 
-// Async thunk for admin signup (no auth header needed)
+// ✅ Restore saved user and token from localStorage
+const storedUser = JSON.parse(localStorage.getItem('user'));
+const storedToken = localStorage.getItem('token');
+
+// --- Thunks ---
 export const adminSignup = createAsyncThunk(
   'auth/adminSignup',
   async (signupData, { rejectWithValue }) => {
@@ -28,7 +30,6 @@ export const adminSignup = createAsyncThunk(
   }
 );
 
-// Async thunk for admin login (no auth header needed)
 export const adminLogin = createAsyncThunk(
   'auth/adminLogin',
   async (loginData, { rejectWithValue }) => {
@@ -45,17 +46,14 @@ export const adminLogin = createAsyncThunk(
   }
 );
 
-// Async thunk to get admin profile (requires auth header)
 export const getAdminProfile = createAsyncThunk(
   'auth/getAdminProfile',
   async (_, { rejectWithValue, getState, dispatch }) => {
     try {
-      // Get accessToken from Redux state or fallback to localStorage
       const token = getState().auth.accessToken || localStorage.getItem('token');
       if (!token) {
         throw { message: 'No authentication token found' };
       }
-      
       const response = await fetch(`${baseURL}/admin/profile`, {
         method: 'GET',
         headers: {
@@ -63,15 +61,6 @@ export const getAdminProfile = createAsyncThunk(
           Authorization: `Bearer ${token}`,
         },
       });
-
-      // Check if token expired (401 Unauthorized)
-      if (response.status === 401) {
-        dispatch(logout());
-        localStorage.removeItem('isAuthenticated');
-        window.location.href = '/login';
-        throw { message: 'Session expired. Please login again.' };
-      }
-
       return await handleResponse(response);
     } catch (error) {
       return rejectWithValue(error);
@@ -79,11 +68,12 @@ export const getAdminProfile = createAsyncThunk(
   }
 );
 
+// --- Slice ---
 const authSlice = createSlice({
   name: 'auth',
   initialState: {
-    user: null,
-    accessToken: localStorage.getItem('token') || null,
+    user: storedUser || null,  // ✅ Restore user immediately
+    accessToken: storedToken || null,
     loading: false,
     error: null,
     success: false,
@@ -96,7 +86,6 @@ const authSlice = createSlice({
       state.error = null;
       state.success = false;
       localStorage.removeItem('token');
-      localStorage.removeItem('isAuthenticated');
     },
   },
   extraReducers: (builder) => {
@@ -111,7 +100,6 @@ const authSlice = createSlice({
         state.success = true;
         state.accessToken = action.payload.data.accessToken;
         localStorage.setItem('token', action.payload.data.accessToken);
-        state.error = null;
       })
       .addCase(adminSignup.rejected, (state, action) => {
         state.loading = false;
@@ -128,7 +116,6 @@ const authSlice = createSlice({
         state.success = true;
         state.accessToken = action.payload.data.accessToken;
         localStorage.setItem('token', action.payload.data.accessToken);
-        state.error = null;
       })
       .addCase(adminLogin.rejected, (state, action) => {
         state.loading = false;
@@ -143,6 +130,7 @@ const authSlice = createSlice({
       .addCase(getAdminProfile.fulfilled, (state, action) => {
         state.loading = false;
         state.user = action.payload.data;
+        localStorage.setItem('user', JSON.stringify(action.payload.data)); // ✅ Save user
         state.error = null;
       })
       .addCase(getAdminProfile.rejected, (state, action) => {
