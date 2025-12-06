@@ -1,16 +1,21 @@
 import React, { useState, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { useNavigate, Link } from 'react-router-dom'
 import { TrendingUp, Package, ShoppingCart, Users, DollarSign, Calendar, Activity, AlertCircle, ArrowUpRight, ArrowDownRight, Eye, Plus, Settings, BarChart3, Sparkles, CheckCircle2, Percent, Tag, Clock, Truck, AlertTriangle, XCircle } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import toast from 'react-hot-toast'
+
 // Import your Redux actions
 import { getProducts } from '../redux/productSlice'
 import { getCategories } from '../redux/categorySlice'
 import { getSubCategories } from '../redux/subcategorySlice'
 import { fetchAdminOrders } from '../redux/orderSlice'
 import { getAllDiscounts } from '../redux/discountSlice'
+import { getAdminProfile, logout } from '../redux/authSlice'
+
 
 const Dashboard = () => {
   const dispatch = useDispatch()
+  const navigate = useNavigate()
   
   // Get data from all Redux stores
   const { products = [], loading: productsLoading } = useSelector(state => state.product || {})
@@ -18,13 +23,54 @@ const Dashboard = () => {
   const { subCategories = [], loading: subCategoriesLoading } = useSelector(state => state.subCategory || {})
   const { orders = [], pagination = {}, loading: ordersLoading } = useSelector(state => state.order || {})
   const { discounts = [], loading: discountsLoading } = useSelector(state => state.discount || {})
+  
+  // Add auth state
+  const { isAuthenticated, accessToken, error: authError } = useSelector(state => state.auth || {})
 
   // Local state for dashboard-specific data
   const [dateRange, setDateRange] = useState('Today')
   const [refreshing, setRefreshing] = useState(false)
+  const [profileVerified, setProfileVerified] = useState(false)
 
-  // Load all data on component mount
+  // ✅ VERIFY TOKEN ON MOUNT - This is the key change
   useEffect(() => {
+    const verifyAuthentication = async () => {
+      const token = localStorage.getItem('token')
+      
+      if (!token) {
+        toast.error('Session expired. Please login again.')
+        dispatch(logout())
+        navigate('/login')
+        return
+      }
+
+      try {
+        // Call profile to verify token
+        await dispatch(getAdminProfile()).unwrap()
+        setProfileVerified(true)
+      } catch (error) {
+        console.error('Token verification failed:', error)
+        toast.error('Session expired. Please login again.')
+        dispatch(logout())
+        navigate('/login')
+      }
+    }
+
+    verifyAuthentication()
+  }, [dispatch, navigate])
+
+  // ✅ Watch for auth errors
+  useEffect(() => {
+    if (authError && !isAuthenticated) {
+      toast.error('Your session has expired. Please login again.')
+      navigate('/login')
+    }
+  }, [authError, isAuthenticated, navigate])
+
+  // Load all data only after profile is verified
+  useEffect(() => {
+    if (!profileVerified) return
+
     const loadAllData = async () => {
       setRefreshing(true)
       try {
@@ -37,13 +83,21 @@ const Dashboard = () => {
         ])
       } catch (error) {
         console.error('Error loading dashboard data:', error)
+        
+        // If any API call fails with auth error, logout
+        if (error?.message?.includes('Unauthorized') || error?.statusCode === 401) {
+          toast.error('Session expired. Please login again.')
+          dispatch(logout())
+          navigate('/login')
+        }
       } finally {
         setRefreshing(false)
       }
     }
 
     loadAllData()
-  }, [dispatch])
+  }, [dispatch, profileVerified, navigate])
+
 
   // MOVED: Helper functions BEFORE calculateStats
   const getTimeAgo = (date) => {
@@ -56,10 +110,12 @@ const Dashboard = () => {
     return `${Math.floor(diff / 24)}d ago`
   }
 
+
   const getInitials = (name) => {
     if (!name) return 'U'
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
   }
+
 
   const getStatusColor = (status) => {
     const statusColors = {
@@ -72,96 +128,110 @@ const Dashboard = () => {
     return statusColors[status?.toLowerCase()] || statusColors.pending
   }
 
+
   const calculateStats = () => {
-  // Product stats
-  const totalProducts = products.length
-  const lowStockProducts = products.filter(product => {
-    const totalStock = product.colors?.reduce((total, color) => {
-      return total + (color.sizeStock?.reduce((sum, size) => sum + size.stock, 0) || 0)
-    }, 0) || 0
-    return totalStock <= 5
-  }).length
+    // Product stats
+    const totalProducts = products.length
+    const lowStockProducts = products.filter(product => {
+      const totalStock = product.colors?.reduce((total, color) => {
+        return total + (color.sizeStock?.reduce((sum, size) => sum + size.stock, 0) || 0)
+      }, 0) || 0
+      return totalStock <= 5
+    }).length
 
-  // Order stats
-  const todayOrders = orders.filter(order => {
-    const today = new Date().toDateString()
-    return new Date(order.createdAt).toDateString() === today
-  })
+    // Order stats
+    const todayOrders = orders.filter(order => {
+      const today = new Date().toDateString()
+      return new Date(order.createdAt).toDateString() === today
+    })
 
-  const todayRevenue = todayOrders.reduce((sum, order) => sum + (order.total || 0), 0)
-  const totalRevenue = orders.reduce((sum, order) => sum + (order.total || 0), 0)
+    const todayRevenue = todayOrders.reduce((sum, order) => sum + (order.total || 0), 0)
+    const totalRevenue = orders.reduce((sum, order) => sum + (order.total || 0), 0)
 
-  // Order status breakdown
-  const ordersByStatus = orders.reduce((acc, order) => {
-    const status = order.status?.toLowerCase() || 'pending'
-    acc[status] = (acc[status] || 0) + 1
-    return acc
-  }, {})
+    // Order status breakdown
+    const ordersByStatus = orders.reduce((acc, order) => {
+      const status = order.status?.toLowerCase() || 'pending'
+      acc[status] = (acc[status] || 0) + 1
+      return acc
+    }, {})
 
-  // Customer stats (unique customers from orders)
-  const uniqueCustomers = new Set(orders.map(order => order.shippingAddress?.name || order.customerId)).size
+    // Customer stats (unique customers from orders)
+    const uniqueCustomers = new Set(orders.map(order => order.shippingAddress?.name || order.customerId)).size
 
-  // Discount stats
-  const activeDiscounts = discounts.filter(d => d.isActive).length
-  const expiredDiscounts = discounts.filter(d => 
-    d.validUntil && new Date(d.validUntil) < new Date()
-  ).length
+    // Discount stats
+    const activeDiscounts = discounts.filter(d => d.isActive).length
+    const expiredDiscounts = discounts.filter(d => 
+      d.validUntil && new Date(d.validUntil) < new Date()
+    ).length
 
-  // Recent activity - FIXED: Create copy before sorting
-  const recentOrders = [...orders]  // Create copy first
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-    .slice(0, 4)
-    .map(order => ({
-      id: order._id,
-      orderNumber: order.orderNumber || `#ORD${order._id?.slice(-4)}`,
-      customer: order.shippingAddress?.name || 'Unknown Customer',
-      product: order.items?.[0]?.productName || 'Multiple Items',
-      amount: `₹${order.total?.toLocaleString('en-IN') || 0}`,
-      status: order.status || 'pending',
-      time: getTimeAgo(order.createdAt),
-      avatar: getInitials(order.shippingAddress?.name || 'U')
-    }))
+    // Recent activity - FIXED: Create copy before sorting
+    const recentOrders = [...orders]  // Create copy first
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 4)
+      .map(order => ({
+        id: order._id,
+        orderNumber: order.orderNumber || `#ORD${order._id?.slice(-4)}`,
+        customer: order.shippingAddress?.name || 'Unknown Customer',
+        product: order.items?.[0]?.productName || 'Multiple Items',
+        amount: `₹${order.total?.toLocaleString('en-IN') || 0}`,
+        status: order.status || 'pending',
+        time: getTimeAgo(order.createdAt),
+        avatar: getInitials(order.shippingAddress?.name || 'U')
+      }))
 
-  // Top selling products - FIXED: Create copy before sorting
-  const productSales = products.map(product => {
-    const sales = orders.reduce((total, order) => {
-      const productInOrder = order.items?.find(item => item.productId === product._id)
-      return total + (productInOrder?.quantity || 0)
-    }, 0)
+    // Top selling products - FIXED: Create copy before sorting
+    const productSales = products.map(product => {
+      const sales = orders.reduce((total, order) => {
+        const productInOrder = order.items?.find(item => item.productId === product._id)
+        return total + (productInOrder?.quantity || 0)
+      }, 0)
 
-    const revenue = orders.reduce((total, order) => {
-      const productInOrder = order.items?.find(item => item.productId === product._id)
-      return total + ((productInOrder?.quantity || 0) * (productInOrder?.price || 0))
-    }, 0)
+      const revenue = orders.reduce((total, order) => {
+        const productInOrder = order.items?.find(item => item.productId === product._id)
+        return total + ((productInOrder?.quantity || 0) * (productInOrder?.price || 0))
+      }, 0)
+
+      return {
+        ...product,
+        unitsSold: sales,
+        revenue: revenue
+      }
+    }).filter(p => p.unitsSold > 0)
+
+    // Create copy before sorting
+    const topProducts = [...productSales]
+      .sort((a, b) => b.unitsSold - a.unitsSold)
+      .slice(0, 4)
 
     return {
-      ...product,
-      unitsSold: sales,
-      revenue: revenue
+      todayOrders: todayOrders.length,
+      todayRevenue,
+      totalRevenue,
+      totalProducts,
+      lowStockProducts,
+      uniqueCustomers,
+      activeDiscounts,
+      expiredDiscounts,
+      ordersByStatus,
+      recentOrders,
+      topProducts
     }
-  }).filter(p => p.unitsSold > 0)
-
-  // Create copy before sorting
-  const topProducts = [...productSales]
-    .sort((a, b) => b.unitsSold - a.unitsSold)
-    .slice(0, 4)
-
-  return {
-    todayOrders: todayOrders.length,
-    todayRevenue,
-    totalRevenue,
-    totalProducts,
-    lowStockProducts,
-    uniqueCustomers,
-    activeDiscounts,
-    expiredDiscounts,
-    ordersByStatus,
-    recentOrders,
-    topProducts
   }
-}
+
+  // Show loading state while verifying profile
+  if (!profileVerified) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-purple-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 text-lg font-medium">Verifying session...</p>
+        </div>
+      </div>
+    )
+  }
 
   const stats = calculateStats()
+
 
   // Rest of your component stays the same...
   // Main stats cards data
@@ -212,6 +282,7 @@ const Dashboard = () => {
     }
   ]
 
+
   // Order status cards data
   const orderStatus = [
     {
@@ -248,6 +319,7 @@ const Dashboard = () => {
     }
   ]
 
+
   // Activity feed data
   const activities = [
     {
@@ -276,7 +348,9 @@ const Dashboard = () => {
     }
   ]
 
+
   const isLoading = productsLoading || categoriesLoading || subCategoriesLoading || ordersLoading || discountsLoading || refreshing
+
 
   return (
     <div className="space-y-8 p-6 bg-gradient-to-br from-gray-50/50 to-pink-50/20 min-h-screen">
@@ -311,6 +385,7 @@ const Dashboard = () => {
         </div>
       </div>
 
+
       {/* Loading Indicator */}
       {isLoading && (
         <div className="text-center py-4">
@@ -320,6 +395,7 @@ const Dashboard = () => {
           </div>
         </div>
       )}
+
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -362,6 +438,7 @@ const Dashboard = () => {
         })}
       </div>
 
+
       {/* Order Status Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {orderStatus.map((order, index) => {
@@ -390,6 +467,7 @@ const Dashboard = () => {
           )
         })}
       </div>
+
 
       {/* Charts and Tables Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -443,6 +521,7 @@ const Dashboard = () => {
           </div>
         </div>
 
+
         {/* Top Products */}
         <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50 overflow-hidden">
           <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50/50 to-pink-50/50">
@@ -458,9 +537,9 @@ const Dashboard = () => {
                   <div key={index} className="flex items-center justify-between group hover:bg-pink-50/30 p-3 rounded-xl transition-all duration-200">
                     <div className="flex items-center space-x-4">
                       <div className={`w-10 h-10 bg-gradient-to-br ${
-                        product.rank === 1 ? 'from-yellow-400 to-amber-500' :
-                        product.rank === 2 ? 'from-gray-400 to-gray-500' :
-                        product.rank === 3 ? 'from-orange-400 to-red-500' :
+                        index === 0 ? 'from-yellow-400 to-amber-500' :
+                        index === 1 ? 'from-gray-400 to-gray-500' :
+                        index === 2 ? 'from-orange-400 to-red-500' :
                         'from-pink-400 to-rose-500'
                       } rounded-xl flex items-center justify-center text-white text-sm font-bold shadow-md`}>
                         #{index + 1}
@@ -489,6 +568,7 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+
 
       {/* Activity Feed and Quick Stats */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -522,6 +602,7 @@ const Dashboard = () => {
           </div>
         </div>
 
+
         {/* System Status */}
         <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50 overflow-hidden">
           <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50/50 to-pink-50/50">
@@ -547,6 +628,7 @@ const Dashboard = () => {
               </Link>
             </div>
 
+
             {/* Active Discounts */}
             <div className="flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200">
               <div className="flex items-center space-x-3">
@@ -562,6 +644,7 @@ const Dashboard = () => {
                 </button>
               </Link>
             </div>
+
 
             {/* Categories Status */}
             <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
@@ -581,6 +664,7 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+
 
       {/* Quick Actions */}
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-8 shadow-lg border border-white/50">
@@ -618,5 +702,6 @@ const Dashboard = () => {
     </div>
   )
 }
+
 
 export default Dashboard

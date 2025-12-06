@@ -48,12 +48,13 @@ export const adminLogin = createAsyncThunk(
 
 export const getAdminProfile = createAsyncThunk(
   'auth/getAdminProfile',
-  async (_, { rejectWithValue, getState, dispatch }) => {
+  async (_, { rejectWithValue, getState }) => {
     try {
       const token = getState().auth.accessToken || localStorage.getItem('token');
       if (!token) {
         throw { message: 'No authentication token found' };
       }
+
       const response = await fetch(`${baseURL}/admin/profile`, {
         method: 'GET',
         headers: {
@@ -72,11 +73,12 @@ export const getAdminProfile = createAsyncThunk(
 const authSlice = createSlice({
   name: 'auth',
   initialState: {
-    user: storedUser || null,  // ✅ Restore user immediately
+    user: storedUser || null,
     accessToken: storedToken || null,
     loading: false,
     error: null,
     success: false,
+    isAuthenticated: !!storedToken, // Added flag
   },
   reducers: {
     logout: (state) => {
@@ -85,7 +87,13 @@ const authSlice = createSlice({
       state.loading = false;
       state.error = null;
       state.success = false;
+      state.isAuthenticated = false;
       localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('isAuthenticated');
+    },
+    clearError: (state) => {
+      state.error = null;
     },
   },
   extraReducers: (builder) => {
@@ -99,13 +107,13 @@ const authSlice = createSlice({
         state.loading = false;
         state.success = true;
         state.accessToken = action.payload.data.accessToken;
+        state.isAuthenticated = true;
         localStorage.setItem('token', action.payload.data.accessToken);
       })
       .addCase(adminSignup.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload || action.error.message;
       })
-
       // Login
       .addCase(adminLogin.pending, (state) => {
         state.loading = true;
@@ -115,13 +123,13 @@ const authSlice = createSlice({
         state.loading = false;
         state.success = true;
         state.accessToken = action.payload.data.accessToken;
+        state.isAuthenticated = true;
         localStorage.setItem('token', action.payload.data.accessToken);
       })
       .addCase(adminLogin.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload || action.error.message;
       })
-
       // Get Profile
       .addCase(getAdminProfile.pending, (state) => {
         state.loading = true;
@@ -130,24 +138,35 @@ const authSlice = createSlice({
       .addCase(getAdminProfile.fulfilled, (state, action) => {
         state.loading = false;
         state.user = action.payload.data;
-        localStorage.setItem('user', JSON.stringify(action.payload.data)); // ✅ Save user
+        state.isAuthenticated = true;
+        localStorage.setItem('user', JSON.stringify(action.payload.data));
         state.error = null;
       })
       .addCase(getAdminProfile.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload || action.error.message;
         
-        // Auto logout if session expired
-        if (action.payload?.message?.includes('Session expired') || 
-            action.payload?.message?.includes('jwt expired')) {
+        // Auto logout if token expired or unauthorized
+        const errorMessage = action.payload?.message || '';
+        if (
+          errorMessage.includes('Session expired') ||
+          errorMessage.includes('jwt expired') ||
+          errorMessage.includes('Token expired') ||
+          errorMessage.includes('Unauthorized') ||
+          errorMessage.includes('invalid token') ||
+          action.payload?.statusCode === 401 ||
+          action.payload?.status === 401
+        ) {
           state.user = null;
           state.accessToken = null;
+          state.isAuthenticated = false;
           localStorage.removeItem('token');
+          localStorage.removeItem('user');
           localStorage.removeItem('isAuthenticated');
         }
       });
   },
 });
 
-export const { logout } = authSlice.actions;
+export const { logout, clearError } = authSlice.actions;
 export default authSlice.reducer;
