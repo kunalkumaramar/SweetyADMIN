@@ -594,6 +594,11 @@ function OrderDetailsModal({
   getStatusBadge,
   getPaymentBadge,
 }) {
+  // Calculate display tax as 5% of subtotal
+  const subtotal = Number(order?.subtotal || 0);
+  const displayTax = Number((subtotal * 0.05).toFixed(2));
+  const discountAmount = Number(order?.totalDiscountAmount || 0);
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
       <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
@@ -612,7 +617,6 @@ function OrderDetailsModal({
             <X className="w-6 h-6" />
           </button>
         </div>
-
 
         <div className="p-6 space-y-6">
           {/* Order Info */}
@@ -647,7 +651,6 @@ function OrderDetailsModal({
               </div>
             </div>
           </div>
-
 
           {/* Customer Information */}
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
@@ -690,7 +693,6 @@ function OrderDetailsModal({
               )}
             </div>
           </div>
-
 
           {/* Products */}
           <div>
@@ -753,7 +755,6 @@ function OrderDetailsModal({
             </div>
           </div>
 
-
           {/* Payment Summary */}
           <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border border-green-100">
             <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
@@ -780,12 +781,23 @@ function OrderDetailsModal({
               <div className="border-t border-green-200 pt-3 space-y-2">
                 <div className="flex justify-between text-gray-700">
                   <span>Subtotal</span>
-                  <span>₹{(order.subtotal || 0).toLocaleString("en-IN")}</span>
+                  <span>₹{subtotal.toLocaleString("en-IN")}</span>
                 </div>
+                
+                {/* Display discount if present */}
+                {discountAmount > 0 && (
+                  <div className="flex justify-between text-gray-700">
+                    <span>Discount</span>
+                    <span className="text-green-600">-₹{discountAmount.toLocaleString("en-IN")}</span>
+                  </div>
+                )}
+                
+                {/* Display tax as 5% of subtotal */}
                 <div className="flex justify-between text-gray-700">
-                  <span>Tax</span>
-                  <span>₹{(order.taxAmount || 0).toLocaleString("en-IN")}</span>
+                  <span>Tax (5%)</span>
+                  <span>₹{displayTax.toLocaleString("en-IN")}</span>
                 </div>
+                
                 <div className="flex justify-between text-gray-700">
                   <span>Shipping</span>
                   <span>
@@ -800,7 +812,6 @@ function OrderDetailsModal({
             </div>
           </div>
 
-
           {/* Notes */}
           {order.notes && (
             <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
@@ -809,7 +820,6 @@ function OrderDetailsModal({
             </div>
           )}
         </div>
-
 
         {/* Modal Footer */}
         <div className="sticky bottom-0 bg-gray-50 px-6 py-4 rounded-b-2xl border-t border-gray-200 flex justify-end">

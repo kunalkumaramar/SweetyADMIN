@@ -97,7 +97,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         lg:translate-x-0
       `}>
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gradient-to-r from-pink-50/50 to-rose-50/50">
+        <div className="flex items-center justify-between p-3 border-b border-gray-100 bg-gradient-to-r from-pink-50/50 to-rose-50/50">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-gradient-to-br from-pink-500 via-rose-500 to-pink-600 rounded-xl shadow-lg flex items-center justify-center transform hover:scale-105 transition-all duration-200">
               <span className="text-white font-bold text-sm tracking-wide">SI</span>
